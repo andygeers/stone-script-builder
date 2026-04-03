@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stone Script Builder</title>
+<style>
+:root {
+  --bg:       #000080;
+  --bg-dark:  #00005A;
+  --bg-mid:   #0000AA;
+  --bg-card:  #000070;
+  --text:     #FFFFFF;
+  --dim:      #AAAAAA;
+  --accent:   #FFFF55;
+  --cyan:     #55FFFF;
+  --green:    #55FF55;
+  --red:      #FF5555;
+  --orange:   #FF9933;
+  --border:   #5555AA;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #00002A;
+  color: var(--text);
+  font-family: 'Courier New', 'Lucida Console', Consolas, monospace;
+  font-size: 14px;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+/* ── MAIN WINDOW ───────────────────────────────────── */
+.window {
+  background: var(--bg);
+  max-width: 960px;
+  margin: 0 auto;
+  border: 2px solid var(--border);
+  box-shadow: 4px 4px 0 #000040;
+}
+
+.titlebar {
+  background: var(--accent);
+  color: #000000;
+  font-weight: bold;
+  text-align: center;
+  padding: 4px 12px;
+  letter-spacing: 2px;
+  font-size: 15px;
+  border-bottom: 2px solid #CCCC00;
+}
+
+.subtitle {
+  background: var(--bg-dark);
+  color: var(--dim);
+  text-align: center;
+  padding: 2px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── TABS ──────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  background: var(--bg-dark);
+  border-bottom: 2px solid var(--border);
+  padding: 6px 6px 0;
+  gap: 3px;
+}
+
+.tab {
+  padding: 4px 12px;
+  cursor: pointer;
+  background: var(--bg-dark);
+  color: var(--dim);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  user-select: none;
+  font-family: inherit;
+  font-size: 13px;
+  position: relative;
+  top: 1px;
+}
+.tab:hover { color: var(--accent); background: var(--bg-mid); }
+.tab.active {
+  background: var(--bg);
+  color: var(--accent);
+  border-color: var(--border);
+  border-bottom: 2px solid var(--bg);
+  font-weight: bold;
+}
+.tab .badge {
+  font-size: 10px;
+  color: var(--cyan);
+  margin-left: 4px;
+}
+.tab-export { color: var(--green) !important; }
+.tab-export.active { color: var(--green) !important; }
+
+/* ── CONTENT ───────────────────────────────────────── */
+.content {
+  padding: 14px 16px;
+  min-height: 420px;
+}
+
+.section-header {
+  color: var(--cyan);
+  font-weight: bold;
+  margin-bottom: 10px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.hint {
+  color: var(--dim);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+/* ── RULE CARD ─────────────────────────────────────── */
+.rule-card {
+  border: 1px solid var(--border);
+  margin-bottom: 10px;
+  background: var(--bg-card);
+}
+
+.rule-card-header {
+  background: var(--bg-dark);
+  padding: 5px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.rule-num {
+  color: var(--accent);
+  font-weight: bold;
+  font-size: 13px;
+}
+
+.rule-card-body { padding: 10px 12px; }
+
+/* ── CONDITION / ACTION ROWS ───────────────────────── */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  flex-wrap: wrap;
+}
+
+.row-label {
+  color: var(--cyan);
+  font-weight: bold;
+  min-width: 52px;
+  font-size: 13px;
+}
+
+.row-label-dim {
+  color: var(--dim);
+  min-width: 78px;
+  font-size: 13px;
+}
+
+.logic-and {
+  color: var(--orange);
+  font-weight: bold;
+  font-size: 12px;
+  padding: 0 2px;
+}
+
+.divider-line {
+  border: none;
+  border-top: 1px dashed var(--border);
+  margin: 8px 0;
+}
+
+/* ── FORM ELEMENTS ─────────────────────────────────── */
+select, input[type="text"], input[type="number"] {
+  background: #000040;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 3px 6px;
+}
+select:focus, input:focus { outline: 1px solid var(--cyan); }
+input[type="text"] { min-width: 160px; }
+input[type="number"] { width: 65px; }
+select { max-width: 220px; }
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+/* ── BUTTONS ───────────────────────────────────────── */
+.btn {
+  background: var(--bg-dark);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 4px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.btn:hover { background: var(--bg-mid); color: var(--accent); }
+
+.btn-sm {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #000000;
+  font-weight: bold;
+  border-color: #CCCC00;
+}
+.btn-primary:hover { background: #FFFF99; }
+
+.btn-danger { color: var(--red); }
+.btn-danger:hover { background: #3A0000; color: var(--red); }
+
+.btn-green { color: var(--green); border-color: var(--green); }
+.btn-green:hover { background: #003A00; }
+
+/* ── EMPTY STATE ───────────────────────────────────── */
+.empty-state {
+  color: var(--dim);
+  text-align: center;
+  padding: 28px;
+  border: 1px dashed var(--border);
+  margin-bottom: 12px;
+  line-height: 1.8;
+}
+
+/* ── EXPORT ────────────────────────────────────────── */
+.export-code {
+  background: #000020;
+  color: var(--green);
+  font-family: inherit;
+  font-size: 12px;
+  width: 100%;
+  min-height: 340px;
+  border: 1px solid var(--border);
+  resize: vertical;
+  padding: 8px;
+}
+.export-code:focus { outline: 1px solid var(--cyan); }
+
+/* ── STATUS BAR ────────────────────────────────────── */
+.statusbar {
+  background: var(--accent);
+  color: #000000;
+  padding: 3px 10px;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  border-top: 2px solid #CCCC00;
+}
+
+/* ── GLOBAL SECTION ────────────────────────────────── */
+.global-card {
+  border: 1px solid var(--border);
+  margin-bottom: 14px;
+  background: var(--bg-card);
+}
+.global-card-header {
+  background: var(--bg-dark);
+  padding: 5px 10px;
+  color: var(--accent);
+  font-weight: bold;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.global-card-body { padding: 10px 12px; }
+
+/* ── PREVIEW TEXT ──────────────────────────────────── */
+.preview-cond {
+  font-size: 12px;
+  color: var(--dim);
+  margin-top: 6px;
+  padding: 4px 8px;
+  background: #000040;
+  border-left: 2px solid var(--border);
+}
+.kw-field { color: var(--cyan); }
+.kw-op    { color: var(--accent); }
+.kw-val   { color: #FFFFFF; }
+.kw-logic { color: var(--orange); }
+
+/* ── SCROLLBAR ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+</style>
+</head>
+<body>
+
+<div class="window">
+  <div class="titlebar">▓▓ STONE SCRIPT BUILDER v0.1 ▓▓</div>
+  <div class="subtitle">╔══ Mind Stone Configuration Tool · StoneStoryRPG ══╗</div>
+
+  <div class="tab-bar" id="tab-bar"></div>
+
+  <div class="content" id="content"></div>
+
+  <div class="statusbar">
+    <span>TAB:Switch · ADD RULE:New condition block · DEL:Remove</span>
+    <span id="status-msg">Ready ■</span>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  DATA DEFINITIONS
+// ═══════════════════════════════════════════════════════════
+
+const LOCATIONS  = ['Global', 'Canyon', 'Forest', 'Icy Ridge', 'Mine', 'Caves', 'Halls', 'Temple', 'Plateau'];
+const LOC_KEYS   = ['global', 'canyon', 'forest', 'icy_ridge', 'mine', 'caves', 'halls', 'temple', 'plateau'];
+const EXPORT_TAB = LOCATIONS.length;
+
+const WEAPONS = [
+  '(none)',
+  // Swords / Melee
+  'heavy hammer', 'poison sword', 'ice sword', 'fire big sword', 'aether sword',
+  'vigor sword', 'bardiche', 'ice staff', 'skeleton_arm', 'blade_of_god',
+  // Ranged
+  'repeating crossbow', 'fire crossbow', 'ice crossbow', 'aether crossbow',
+  // Wands
+  'poison wand', 'fire wand', 'ice wand', 'aether wand', 'vigor wand',
+  // Shields & Utility
+  'compound shield', 'dash', 'bash', 'Mind Stone', 'mind',
+  // Healing / Pickup
+  'oro', 'star',
+  // Masks & Talismans
+  'mask', 'fire_talisman', 'aether_talisman',
+];
+
+const WEAPON_MODIFIERS = ['(none)', 'D', 'dL', 'dP', 'dF', 'dI', '*0'];
+
+const FOE_TYPES = [
+  '(any foe)',
+  // Generic
+  'boss',
+  // Canyon
+  'wasp', 'mosquito', 'stone scarab', 'xyloalgia',
+  // Forest / Icy Ridge
+  'giant ice elemental', 'ice wall', 'ice pillar',
+  // Mine
+  'bomb cart',
+  // Caves
+  'nail biter', 'not caviar', 'ceiling detector',
+  // Halls
+  'Pallas the Legless', 'Timmy', 'Boo',
+  // Temple / Plateau
+  'Nagaraja', 'dysangelos', 'acronian scout', 'Acronian Cultist',
+];
+
+const POTION_TYPES = ['any', 'healing', 'cleansing', 'vampiric'];
+
+const COND_FIELDS = [
+  { v: 'foe',            label: 'Foe type',       type: 'foe'    },
+  { v: 'foe.distance',   label: 'Foe distance',   type: 'num'    },
+  { v: 'foe.armor',      label: 'Foe armor',      type: 'num'    },
+  { v: 'foe.state',      label: 'Foe state #',    type: 'num'    },
+  { v: 'foe.count',      label: 'Foe count',      type: 'num'    },
+  { v: 'hp',             label: 'HP (absolute)',   type: 'num'    },
+  { v: 'hp_pct',         label: 'HP %',           type: 'pct'    },
+  { v: 'armor',          label: 'My armor',       type: 'num'    },
+  { v: 'summon.count',   label: 'Summon count',   type: 'num'    },
+  { v: 'pickup.distance',label: 'Pickup dist.',   type: 'num'    },
+  { v: 'item.potion',    label: 'Potion type',    type: 'potion' },
+];
+
+const OPERATORS     = ['=', '!=', '<', '<=', '>', '>='];
+const NUM_OPS       = ['<', '<=', '>', '>=', '=', '!='];
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+
+let nextId = 1;
+const uid = () => nextId++;
+
+const makeRule = () => ({
+  id: uid(),
+  conditions: [],
+  leftHand: '(none)',
+  leftMod: '(none)',
+  rightHand: '(none)',
+  rightMod: '(none)',
+  activateR: false,
+  activatePotion: false,
+  notes: '',
+});
+
+const makeCond = () => ({
+  id: uid(),
+  field: 'foe',
+  operator: '=',
+  value: 'boss',
+  negate: false,
+});
+
+let state = {
+  activeTab: 0,
+  rules: Object.fromEntries(LOC_KEYS.map(k => [k, []])),
+  globalPotion: { enabled: true, hpBelow: 7, potionType: 'any' },
+  globalSummon: { enabled: false, talismanType: 'fire_talisman' },
+  globalBossDebuff: { enabled: false },
+};
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER ENGINE
+// ═══════════════════════════════════════════════════════════
+
+function render() {
+  renderTabs();
+  renderContent();
+}
+
+function renderTabs() {
+  const bar = document.getElementById('tab-bar');
+  let html = '';
+  LOCATIONS.forEach((loc, i) => {
+    const key = LOC_KEYS[i];
+    const count = (key === 'global') ? '' : (state.rules[key].length > 0 ? `<span class="badge">(${state.rules[key].length})</span>` : '');
+    const active = state.activeTab === i ? 'active' : '';
+    html += `<div class="tab ${active}" onclick="setTab(${i})">${loc}${count}</div>`;
+  });
+  const expActive = state.activeTab === EXPORT_TAB ? 'active' : '';
+  html += `<div class="tab tab-export ${expActive}" onclick="setTab(${EXPORT_TAB})">▶ EXPORT</div>`;
+  bar.innerHTML = html;
+}
+
+function setTab(i) {
+  state.activeTab = i;
+  render();
+}
+
+function renderContent() {
+  const el = document.getElementById('content');
+  if (state.activeTab === EXPORT_TAB) { el.innerHTML = buildExportHTML(); return; }
+  if (state.activeTab === 0)          { el.innerHTML = buildGlobalHTML(); return; }
+  el.innerHTML = buildLocationHTML(state.activeTab);
+}
+
+// ── GLOBAL TAB ──────────────────────────────────────────────
+
+function buildGlobalHTML() {
+  let h = `<div class="section-header">╔══ GLOBAL SETTINGS ══╗</div>`;
+  h += `<div class="hint">These rules apply everywhere, regardless of location.</div>`;
+
+  // Auto potion
+  h += `<div class="global-card">`;
+  h += `<div class="global-card-header">┌─ AUTO POTION USE ───────────────────────────────────</div>`;
+  h += `<div class="global-card-body">`;
+  h += `<div class="row"><label><input type="checkbox" ${state.globalPotion.enabled ? 'checked' : ''}
+    onchange="state.globalPotion.enabled=this.checked"> Enable automatic potion use</label></div>`;
+  h += `<div class="row">
+    <span class="row-label-dim">Use when HP &lt;</span>
+    <input type="number" value="${state.globalPotion.hpBelow}" min="1" max="999"
+      onchange="state.globalPotion.hpBelow=+this.value">
+  </div>`;
+  h += `<div class="row">
+    <span class="row-label-dim">Potion type:</span>
+    <select onchange="state.globalPotion.potionType=this.value">
+      ${POTION_TYPES.map(p => opt(p, p === state.globalPotion.potionType, p === 'any' ? 'Any available' : p)).join('')}
+    </select>
+  </div>`;
+  h += `<div class="preview-cond">${buildPotionPreview()}</div>`;
+  h += `</div></div>`;
+
+  // Auto summon
+  h += `<div class="global-card">`;
+  h += `<div class="global-card-header">┌─ AUTO SUMMON (Talisman) ────────────────────────────</div>`;
+  h += `<div class="global-card-body">`;
+  h += `<div class="row"><label><input type="checkbox" ${state.globalSummon.enabled ? 'checked' : ''}
+    onchange="state.globalSummon.enabled=this.checked"> Re-summon if summon.count = 0</label></div>`;
+  h += `<div class="row">
+    <span class="row-label-dim">Talisman:</span>
+    <select onchange="state.globalSummon.talismanType=this.value">
+      ${['fire_talisman','aether_talisman'].map(t => opt(t, t === state.globalSummon.talismanType)).join('')}
+    </select>
+  </div>`;
+  h += `</div></div>`;
+
+  h += `<div class="hint" style="margin-top:8px; color: #5555FF;">
+    ▸ Location-specific rules are configured in the tabs above (Canyon, Forest, etc.)<br>
+    ▸ When you're done, go to ▶ EXPORT to generate your Stonescript.
+  </div>`;
+
+  return h;
+}
+
+function buildPotionPreview() {
+  if (!state.globalPotion.enabled) return '<span style="color:#FF5555;">// Potion auto-use disabled</span>';
+  const pt = state.globalPotion.potionType;
+  const potCond = pt === 'any'
+    ? `(item.potion = healing | item.potion = cleansing | item.potion = vampiric)`
+    : `item.potion = ${pt}`;
+  return `// Preview: <span class="kw-field">?hp</span> <span class="kw-op">&lt;</span> <span class="kw-val">${state.globalPotion.hpBelow}</span> <span class="kw-logic">&amp;</span> ${potCond}<br>//   activate potion`;
+}
+
+// ── LOCATION TAB ─────────────────────────────────────────────
+
+function buildLocationHTML(tabIdx) {
+  const key  = LOC_KEYS[tabIdx];
+  const name = LOCATIONS[tabIdx];
+  const rules = state.rules[key];
+
+  let h = `<div class="section-header">╔══ ${name.toUpperCase()} RULES ══╗</div>`;
+  h += `<div class="hint">Rules are checked top-to-bottom. First matching rule wins (if / else-if chain).</div>`;
+
+  if (rules.length === 0) {
+    h += `<div class="empty-state">
+      No rules yet for <strong style="color:var(--accent)">${name}</strong>.<br>
+      Add a rule to define equipment and behaviour for this location.
+    </div>`;
+  } else {
+    rules.forEach((rule, idx) => {
+      h += buildRuleCard(rule, idx, key, rules.length);
+    });
+  }
+
+  h += `<button class="btn btn-primary" onclick="addRule('${key}')">[ + ADD RULE ]</button>`;
+  return h;
+}
+
+function buildRuleCard(rule, idx, key, total) {
+  const condPreview = buildCondPreview(rule.conditions);
+
+  let h = `<div class="rule-card">`;
+  // Header
+  h += `<div class="rule-card-header">`;
+  h += `<span class="rule-num">┌─ RULE ${idx + 1} ${idx === 0 ? '<span style="color:var(--dim);font-size:11px;">(checked first)</span>' : idx === total-1 ? '<span style="color:var(--dim);font-size:11px;">(checked last / default)</span>' : ''}</span>`;
+  h += `<span>`;
+  if (idx > 0) h += `<button class="btn btn-sm" onclick="moveRule('${key}',${idx},-1)" title="Move up">▲</button> `;
+  if (idx < total - 1) h += `<button class="btn btn-sm" onclick="moveRule('${key}',${idx},1)" title="Move down">▼</button> `;
+  h += `<button class="btn btn-sm btn-danger" onclick="deleteRule('${key}',${idx})">[✕ DEL]</button>`;
+  h += `</span>`;
+  h += `</div>`;
+
+  // Body
+  h += `<div class="rule-card-body">`;
+
+  // ── CONDITIONS ──
+  h += `<div class="row"><span class="row-label">IF:</span>`;
+  if (rule.conditions.length === 0) {
+    h += `<span style="color:var(--dim); font-size:12px;">(no conditions — this rule always matches as a fallback)</span>`;
+  }
+  h += `</div>`;
+
+  rule.conditions.forEach((cond, cidx) => {
+    h += buildCondRow(cond, cidx, rule.id, key, idx);
+  });
+
+  h += `<div class="row">
+    <button class="btn btn-sm" onclick="addCond('${key}',${idx})">[ + ADD CONDITION ]</button>
+    ${rule.conditions.length > 0 ? `<span class="preview-cond" style="display:inline-block; margin-left:8px;">${condPreview}</span>` : ''}
+  </div>`;
+
+  h += `<hr class="divider-line">`;
+
+  // ── ACTIONS ──
+  h += `<div class="row"><span class="row-label" style="color:var(--green);">THEN:</span></div>`;
+
+  // Left hand
+  h += `<div class="row">
+    <span class="row-label-dim">Left hand:</span>
+    <select onchange="setRuleProp('${key}',${idx},'leftHand',this.value)">
+      ${WEAPONS.map(w => opt(w, w === rule.leftHand)).join('')}
+    </select>
+    <select title="Modifier (D=dual, dP=debuff poison, etc.)" onchange="setRuleProp('${key}',${idx},'leftMod',this.value)">
+      ${WEAPON_MODIFIERS.map(m => opt(m, m === rule.leftMod, m === '(none)' ? 'No modifier' : m)).join('')}
+    </select>
+  </div>`;
+
+  // Right hand
+  h += `<div class="row">
+    <span class="row-label-dim">Right hand:</span>
+    <select onchange="setRuleProp('${key}',${idx},'rightHand',this.value)">
+      ${WEAPONS.map(w => opt(w, w === rule.rightHand)).join('')}
+    </select>
+    <select title="Modifier" onchange="setRuleProp('${key}',${idx},'rightMod',this.value)">
+      ${WEAPON_MODIFIERS.map(m => opt(m, m === rule.rightMod, m === '(none)' ? 'No modifier' : m)).join('')}
+    </select>
+  </div>`;
+
+  // Activate
+  h += `<div class="row">
+    <label><input type="checkbox" ${rule.activateR ? 'checked' : ''}
+      onchange="setRuleProp('${key}',${idx},'activateR',this.checked)">
+      Activate right-hand item <span style="color:var(--dim); font-size:11px;">(activate R)</span></label>
+  </div>`;
+  h += `<div class="row">
+    <label><input type="checkbox" ${rule.activatePotion ? 'checked' : ''}
+      onchange="setRuleProp('${key}',${idx},'activatePotion',this.checked)">
+      Use potion <span style="color:var(--dim); font-size:11px;">(activate potion)</span></label>
+  </div>`;
+
+  // Notes
+  h += `<div class="row">
+    <span class="row-label-dim" style="color:var(--dim);">// Comment:</span>
+    <input type="text" style="flex:1; max-width:500px;"
+      placeholder="Optional note about this rule..."
+      value="${escHtml(rule.notes)}"
+      onchange="setRuleProp('${key}',${idx},'notes',this.value)">
+  </div>`;
+
+  h += `</div>`; // rule-card-body
+  h += `</div>`; // rule-card
+  return h;
+}
+
+function buildCondRow(cond, cidx, ruleId, key, ruleIdx) {
+  const fieldDef = COND_FIELDS.find(f => f.v === cond.field) || COND_FIELDS[0];
+  const ops = (fieldDef.type === 'foe' || fieldDef.type === 'potion') ? ['=', '!='] : NUM_OPS;
+
+  let h = `<div class="row" id="cr-${ruleId}-${cidx}">`;
+  if (cidx > 0) h += `<span class="logic-and">AND</span>`;
+
+  // Negate
+  h += `<label style="font-size:12px; color:var(--dim);">
+    <input type="checkbox" ${cond.negate ? 'checked' : ''}
+      onchange="setCondProp('${key}',${ruleIdx},${cidx},'negate',this.checked)"> NOT
+  </label>`;
+
+  // Field
+  h += `<select onchange="setCondField('${key}',${ruleIdx},${cidx},this.value)">
+    ${COND_FIELDS.map(f => opt(f.v, f.v === cond.field, f.label)).join('')}
+  </select>`;
+
+  // Operator
+  h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'operator',this.value)">
+    ${ops.map(o => opt(o, o === cond.operator)).join('')}
+  </select>`;
+
+  // Value
+  if (fieldDef.type === 'foe') {
+    h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'value',this.value)">
+      ${FOE_TYPES.map(f => opt(f, f === cond.value)).join('')}
+    </select>`;
+  } else if (fieldDef.type === 'potion') {
+    h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'value',this.value)">
+      ${POTION_TYPES.filter(p=>p!=='any').map(p => opt(p, p === cond.value)).join('')}
+    </select>`;
+  } else if (fieldDef.type === 'pct') {
+    h += `<input type="number" min="0" max="100" value="${cond.value}"
+      onchange="setCondProp('${key}',${ruleIdx},${cidx},'value',this.value)">
+      <span style="color:var(--dim); font-size:12px;">%</span>`;
+  } else {
+    h += `<input type="number" min="0" value="${cond.value}"
+      onchange="setCondProp('${key}',${ruleIdx},${cidx},'value',this.value)">`;
+  }
+
+  h += `<button class="btn btn-sm btn-danger" onclick="removeCond('${key}',${ruleIdx},${cidx})">[✕]</button>`;
+  h += `</div>`;
+  return h;
+}
+
+function buildCondPreview(conditions) {
+  if (!conditions || conditions.length === 0) return '';
+  return conditions.map(c => {
+    const neg = c.negate ? '<span style="color:var(--red);">!</span>' : '';
+    if (c.field === 'hp_pct') {
+      return `${neg}<span class="kw-field">hp</span> <span class="kw-op">${c.operator}</span> <span class="kw-val">maxhp * ${(+c.value/100).toFixed(2)}</span>`;
+    }
+    const opStr = c.operator === '!=' ? '!' : c.operator;
+    return `${neg}<span class="kw-field">${c.field}</span> <span class="kw-op">${opStr}</span> <span class="kw-val">${c.value}</span>`;
+  }).join(' <span class="kw-logic">&amp;</span> ');
+}
+
+// ── EXPORT TAB ───────────────────────────────────────────────
+
+function buildExportHTML() {
+  const script = generateScript();
+  let h = `<div class="section-header">╔══ EXPORT STONESCRIPT ══╗</div>`;
+  h += `<div class="hint">Copy this into your Mind Stone in-game.</div>`;
+  h += `<div class="row">
+    <button class="btn btn-primary" onclick="copyScript()">[ COPY TO CLIPBOARD ]</button>
+    <span style="color:var(--dim); font-size:12px; margin-left:8px;" id="copy-msg"></span>
+  </div>`;
+  h += `<textarea class="export-code" id="export-code" readonly>${escHtml(script)}</textarea>`;
+  return h;
+}
+
+function copyScript() {
+  const ta = document.getElementById('export-code');
+  if (!ta) return;
+  navigator.clipboard.writeText(ta.value).then(() => {
+    const msg = document.getElementById('copy-msg');
+    if (msg) { msg.textContent = '✓ Copied!'; msg.style.color = 'var(--green)'; }
+    setStatus('Copied to clipboard!');
+    setTimeout(() => { if (msg) msg.textContent = ''; setStatus('Ready ■'); }, 3000);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  STONESCRIPT GENERATOR
+// ═══════════════════════════════════════════════════════════
+
+function generateScript() {
+  const lines = [];
+  lines.push('// Generated by Stone Script Builder v0.1');
+  lines.push('import UI/MindstoneButton');
+  lines.push('');
+
+  // Global potion
+  if (state.globalPotion.enabled) {
+    const pt = state.globalPotion.potionType;
+    const potCond = pt === 'any'
+      ? `(item.potion = healing | item.potion = cleansing | item.potion = vampiric)`
+      : `item.potion = ${pt}`;
+    lines.push(`?hp < ${state.globalPotion.hpBelow} & ${potCond}`);
+    lines.push(`  activate potion`);
+    lines.push('');
+  }
+
+  // Per-location
+  LOC_KEYS.forEach((key, li) => {
+    if (key === 'global') return;
+    const rules = state.rules[key];
+    const hasSummon = state.globalSummon.enabled;
+
+    // Only emit if there are rules (or summon is enabled)
+    if (rules.length === 0 && !hasSummon) return;
+
+    lines.push(`?loc = ${key}`);
+
+    let ruleStart = 0;
+
+    // Summon block first
+    if (hasSummon) {
+      lines.push(`  ?summon.count = 0`);
+      lines.push(`    equipR ${state.globalSummon.talismanType}`);
+      lines.push(`    ?item.CanActivate()`);
+      lines.push(`      activate R`);
+      ruleStart = 1;
+    }
+
+    rules.forEach((rule, idx) => {
+      const isFirst = (idx === 0 && ruleStart === 0) || (idx === 0 && ruleStart === 1 && hasSummon);
+      const prefix = (idx === 0 && ruleStart === 0) ? '  ?' : '  :?';
+      const condStr = buildCondStr(rule.conditions);
+
+      if (condStr) {
+        lines.push(`${prefix}${condStr}`);
+      } else {
+        // No conditions = else/default
+        lines.push(`  :`);
+      }
+
+      if (rule.notes) lines.push(`    // ${rule.notes}`);
+
+      // Equipment
+      const lw = weapStr(rule.leftHand, rule.leftMod);
+      const rw = weapStr(rule.rightHand, rule.rightMod);
+
+      if (lw && rw && lw === rw) {
+        lines.push(`    equip ${lw}`);
+      } else {
+        if (lw) lines.push(`    equipL ${lw}`);
+        if (rw) lines.push(`    equipR ${rw}`);
+      }
+
+      if (rule.activateR)      lines.push(`    ?item.CanActivate()\n      activate R`);
+      if (rule.activatePotion) lines.push(`    activate potion`);
+    });
+
+    if (hasSummon && rules.length > 0) {
+      // close the summon block with a colon before the first real rule
+      // (already handled by prefix logic above — this is a simplification)
+    }
+
+    lines.push('');
+  });
+
+  return lines.join('\n');
+}
+
+function weapStr(weapon, mod) {
+  if (!weapon || weapon === '(none)') return null;
+  const m = (!mod || mod === '(none)') ? '' : ` ${mod}`;
+  return `${weapon}${m}`;
+}
+
+function buildCondStr(conditions) {
+  if (!conditions || conditions.length === 0) return '';
+  return conditions.map(c => {
+    const neg = c.negate ? '!' : '';
+    if (c.field === 'hp_pct') {
+      return `${neg}hp ${c.operator} maxhp * ${(+c.value/100).toFixed(2)}`;
+    }
+    const opStr = c.operator === '!=' ? '!' : c.operator;
+    return `${neg}${c.field} ${opStr} ${c.value}`;
+  }).join(' & ');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  STATE MUTATIONS
+// ═══════════════════════════════════════════════════════════
+
+function addRule(key) {
+  state.rules[key].push(makeRule());
+  render();
+  setStatus(`Rule added to ${key}`);
+}
+
+function deleteRule(key, idx) {
+  state.rules[key].splice(idx, 1);
+  render();
+  setStatus('Rule deleted');
+}
+
+function moveRule(key, idx, dir) {
+  const arr = state.rules[key];
+  const ni = idx + dir;
+  if (ni < 0 || ni >= arr.length) return;
+  [arr[idx], arr[ni]] = [arr[ni], arr[idx]];
+  render();
+}
+
+function setRuleProp(key, idx, prop, val) {
+  state.rules[key][idx][prop] = val;
+  renderTabs();
+}
+
+function addCond(key, ruleIdx) {
+  state.rules[key][ruleIdx].conditions.push(makeCond());
+  render();
+}
+
+function removeCond(key, ruleIdx, condIdx) {
+  state.rules[key][ruleIdx].conditions.splice(condIdx, 1);
+  render();
+}
+
+function setCondProp(key, ruleIdx, condIdx, prop, val) {
+  state.rules[key][ruleIdx].conditions[condIdx][prop] = val;
+}
+
+function setCondField(key, ruleIdx, condIdx, fieldVal) {
+  const cond = state.rules[key][ruleIdx].conditions[condIdx];
+  cond.field = fieldVal;
+  const fd = COND_FIELDS.find(f => f.v === fieldVal);
+  // Reset value to sensible default
+  if (fd.type === 'foe')    cond.value = 'boss';
+  else if (fd.type === 'potion') cond.value = 'healing';
+  else                       cond.value = '10';
+  cond.operator = (fd.type === 'foe' || fd.type === 'potion') ? '=' : '<';
+  render();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════════════════
+
+function opt(val, selected, label) {
+  return `<option value="${escHtml(val)}" ${selected ? 'selected' : ''}>${escHtml(label !== undefined ? label : val)}</option>`;
+}
+
+function escHtml(s) {
+  if (s === undefined || s === null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function setStatus(msg) {
+  const el = document.getElementById('status-msg');
+  if (el) el.textContent = msg + ' ■';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════════
+
+render();
+</script>
+</body>
+</html>
