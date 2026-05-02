@@ -316,8 +316,12 @@ input[type="checkbox"] {
   <div class="content" id="content"></div>
 
   <div class="statusbar">
-    <span>TAB:Switch · ADD RULE:New condition block · DEL:Remove</span>
-    <span id="status-msg">Ready ■</span>
+    <span>TAB:Switch · ADD RULE:New condition block · DEL:Remove · Auto-saved to browser</span>
+    <span style="display:flex; gap:12px; align-items:center;">
+      <span id="status-msg">Ready ■</span>
+      <span onclick="clearState()" style="cursor:pointer; text-decoration:underline; opacity:0.6;"
+        title="Clear all rules and start over">[RESET]</span>
+    </span>
   </div>
 </div>
 
@@ -326,9 +330,33 @@ input[type="checkbox"] {
 //  DATA DEFINITIONS
 // ═══════════════════════════════════════════════════════════
 
+// Short names used in tabs; LOC_DISPLAY used in content headers
 const LOCATIONS  = ['Global', 'Canyon', 'Forest', 'Icy Ridge', 'Mine', 'Caves', 'Halls', 'Temple', 'Plateau'];
 const LOC_KEYS   = ['global', 'canyon', 'forest', 'icy_ridge', 'mine', 'caves', 'halls', 'temple', 'plateau'];
+const LOC_DISPLAY = ['Global', 'Deadwood Canyon', 'Mushroom Forest', 'Icy Ridge', 'Boiling Mine', 'Caves of Fear', 'Haunted Halls', 'Temple', 'Rocky Plateau'];
 const EXPORT_TAB = LOCATIONS.length;
+
+const ELEM_COLORS = {
+  'Neutral':      '#AAAAAA',
+  'Vigor':        '#55FF55',
+  'Poison':       '#CC55CC',
+  'Fire':         '#FF7722',
+  'Aether':       '#7777FF',
+  'Ice':          '#55FFFF',
+  'All elements': '#FFFF55',
+};
+
+const LOC_INFO = {
+  global:    { element: null,           weakness: null      },
+  canyon:    { element: 'Neutral',      weakness: null      },
+  forest:    { element: 'Vigor',        weakness: 'Poison'  },
+  icy_ridge: { element: 'Ice',          weakness: 'Fire'    },
+  mine:      { element: 'Fire',         weakness: 'Aether'  },
+  caves:     { element: 'Poison',       weakness: 'Ice'     },
+  halls:     { element: 'Aether',       weakness: 'Vigor'   },
+  temple:    { element: 'Poison',       weakness: 'Ice'     },
+  plateau:   { element: 'All elements', weakness: null      },
+};
 
 const WEAPONS = [
   '(none)',
@@ -416,9 +444,11 @@ const makeCond = () => ({
 let state = {
   activeTab: 0,
   rules: Object.fromEntries(LOC_KEYS.map(k => [k, []])),
-  globalPotion: { enabled: true, hpBelow: 7, potionType: 'any' },
-  globalSummon: { enabled: false, talismanType: 'fire_talisman' },
-  globalBossDebuff: { enabled: false },
+  // Per-location summon config (keyed by LOC_KEY, excludes 'global')
+  locSummon: Object.fromEntries(
+    LOC_KEYS.filter(k => k !== 'global').map(k => [k, { enabled: false, talismanType: 'fire_talisman' }])
+  ),
+  attackAnimCancel: false,
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -426,6 +456,7 @@ let state = {
 // ═══════════════════════════════════════════════════════════
 
 function render() {
+  saveState();
   renderTabs();
   renderContent();
 }
@@ -435,7 +466,7 @@ function renderTabs() {
   let html = '';
   LOCATIONS.forEach((loc, i) => {
     const key = LOC_KEYS[i];
-    const count = (key === 'global') ? '' : (state.rules[key].length > 0 ? `<span class="badge">(${state.rules[key].length})</span>` : '');
+    const count = state.rules[key].length > 0 ? `<span class="badge">(${state.rules[key].length})</span>` : '';
     const active = state.activeTab === i ? 'active' : '';
     html += `<div class="tab ${active}" onclick="setTab(${i})">${loc}${count}</div>`;
   });
@@ -460,72 +491,108 @@ function renderContent() {
 
 function buildGlobalHTML() {
   let h = `<div class="section-header">╔══ GLOBAL SETTINGS ══╗</div>`;
-  h += `<div class="hint">These rules apply everywhere, regardless of location.</div>`;
+  h += `<div class="hint">Special behaviours and rules that run in every location.</div>`;
 
-  // Auto potion
+  // ── Special behaviours card ──
   h += `<div class="global-card">`;
-  h += `<div class="global-card-header">┌─ AUTO POTION USE ───────────────────────────────────</div>`;
+  h += `<div class="global-card-header">┌─ SPECIAL BEHAVIOURS ───────────────────────────────</div>`;
   h += `<div class="global-card-body">`;
-  h += `<div class="row"><label><input type="checkbox" ${state.globalPotion.enabled ? 'checked' : ''}
-    onchange="state.globalPotion.enabled=this.checked"> Enable automatic potion use</label></div>`;
-  h += `<div class="row">
-    <span class="row-label-dim">Use when HP &lt;</span>
-    <input type="number" value="${state.globalPotion.hpBelow}" min="1" max="999"
-      onchange="state.globalPotion.hpBelow=+this.value">
-  </div>`;
-  h += `<div class="row">
-    <span class="row-label-dim">Potion type:</span>
-    <select onchange="state.globalPotion.potionType=this.value">
-      ${POTION_TYPES.map(p => opt(p, p === state.globalPotion.potionType, p === 'any' ? 'Any available' : p)).join('')}
-    </select>
-  </div>`;
-  h += `<div class="preview-cond">${buildPotionPreview()}</div>`;
-  h += `</div></div>`;
 
-  // Auto summon
-  h += `<div class="global-card">`;
-  h += `<div class="global-card-header">┌─ AUTO SUMMON (Talisman) ────────────────────────────</div>`;
-  h += `<div class="global-card-body">`;
-  h += `<div class="row"><label><input type="checkbox" ${state.globalSummon.enabled ? 'checked' : ''}
-    onchange="state.globalSummon.enabled=this.checked"> Re-summon if summon.count = 0</label></div>`;
-  h += `<div class="row">
-    <span class="row-label-dim">Talisman:</span>
-    <select onchange="state.globalSummon.talismanType=this.value">
-      ${['fire_talisman','aether_talisman'].map(t => opt(t, t === state.globalSummon.talismanType)).join('')}
-    </select>
-  </div>`;
-  h += `</div></div>`;
+  // Attack animation cancel
+  h += `<div class="row" style="margin-top:6px;"><label><input type="checkbox" ${state.attackAnimCancel ? 'checked' : ''}
+    onchange="state.attackAnimCancel=this.checked;render()"> Attack animation cancelling</label></div>`;
+  if (state.attackAnimCancel) {
+    h += `<div class="preview-cond" style="margin-left:22px; margin-top:4px;">
+      <span class="kw-field">?item.left.state</span> <span class="kw-op">=</span> <span class="kw-val">3</span><br>
+      &nbsp;&nbsp;equipL *0 wand <span style="color:var(--dim);">//trash</span><br>
+      &nbsp;&nbsp;equipL @item.left@<br>
+      <span class="kw-field">?item.right.state</span> <span class="kw-op">=</span> <span class="kw-val">3</span><br>
+      &nbsp;&nbsp;equipR *0 shield <span style="color:var(--dim);">//trash</span><br>
+      &nbsp;&nbsp;equip @item.right@
+    </div>`;
+  }
 
-  h += `<div class="hint" style="margin-top:8px; color: #5555FF;">
-    ▸ Location-specific rules are configured in the tabs above (Canyon, Forest, etc.)<br>
-    ▸ When you're done, go to ▶ EXPORT to generate your Stonescript.
-  </div>`;
+  h += `</div></div>`; // global-card-body / global-card
 
+  // ── Global rules (same as any location tab) ──
+  h += `<div class="section-header" style="margin-top:16px;">╔══ GLOBAL RULES ══╗</div>`;
+  h += `<div class="hint">These if/else rules run before any location-specific rules. Good for potion use, debuff responses, etc.</div>`;
+
+  const rules = state.rules['global'];
+  if (rules.length === 0) {
+    h += `<div class="empty-state">
+      No global rules yet.<br>
+      Example: add a rule with <em>HP % &lt; 40</em> + <em>Potion type = vampiric</em> → <em>activate potion</em>.
+    </div>`;
+  } else {
+    rules.forEach((rule, idx) => {
+      h += buildRuleCard(rule, idx, 'global', rules.length);
+    });
+  }
+
+  h += `<button class="btn btn-primary" onclick="addRule('global')">[ + ADD GLOBAL RULE ]</button>`;
   return h;
-}
-
-function buildPotionPreview() {
-  if (!state.globalPotion.enabled) return '<span style="color:#FF5555;">// Potion auto-use disabled</span>';
-  const pt = state.globalPotion.potionType;
-  const potCond = pt === 'any'
-    ? `(item.potion = healing | item.potion = cleansing | item.potion = vampiric)`
-    : `item.potion = ${pt}`;
-  return `// Preview: <span class="kw-field">?hp</span> <span class="kw-op">&lt;</span> <span class="kw-val">${state.globalPotion.hpBelow}</span> <span class="kw-logic">&amp;</span> ${potCond}<br>//   activate potion`;
 }
 
 // ── LOCATION TAB ─────────────────────────────────────────────
 
 function buildLocationHTML(tabIdx) {
-  const key  = LOC_KEYS[tabIdx];
-  const name = LOCATIONS[tabIdx];
-  const rules = state.rules[key];
+  const key     = LOC_KEYS[tabIdx];
+  const name    = LOC_DISPLAY[tabIdx];
+  const rules   = state.rules[key];
+  const info    = LOC_INFO[key] || {};
 
   let h = `<div class="section-header">╔══ ${name.toUpperCase()} RULES ══╗</div>`;
+
+  // Element / weakness banner
+  if (info.element) {
+    const elemCol = ELEM_COLORS[info.element] || '#FFFFFF';
+    let banner = `<div style="display:flex; gap:24px; margin-bottom:10px; padding:5px 10px;
+        background:var(--bg-dark); border:1px solid var(--border); font-size:13px;">`;
+    banner += `<span>Location element: <strong style="color:${elemCol};">${info.element}</strong></span>`;
+    if (info.weakness) {
+      const weakCol = ELEM_COLORS[info.weakness] || '#FFFFFF';
+      banner += `<span>Enemy weakness: <strong style="color:${weakCol};">${info.weakness}</strong>
+        <span style="color:var(--dim); font-size:11px;">(favour ${info.weakness.toLowerCase()} weapons)</span></span>`;
+    } else if (info.element === 'Neutral') {
+      banner += `<span style="color:var(--dim); font-size:12px;">No elemental weakness — standard loadout applies</span>`;
+    } else if (info.element === 'All elements') {
+      banner += `<span style="color:var(--dim); font-size:12px;">Dysangelos rotates weaknesses — check foe buffs in rules</span>`;
+    }
+    banner += `</div>`;
+    h += banner;
+  }
+
   h += `<div class="hint">Rules are checked top-to-bottom. First matching rule wins (if / else-if chain).</div>`;
+
+  // ── Per-location summon card ──
+  const summon = state.locSummon[key];
+  h += `<div class="global-card" style="margin-bottom:12px;">`;
+  h += `<div class="global-card-header">┌─ AUTO SUMMON ───────────────────────────────────────</div>`;
+  h += `<div class="global-card-body">`;
+  h += `<div class="row">
+    <label><input type="checkbox" ${summon.enabled ? 'checked' : ''}
+      onchange="state.locSummon['${key}'].enabled=this.checked;render()">
+      Re-cast talisman when summon.count = 0</label>
+  </div>`;
+  if (summon.enabled) {
+    const talismans = ['fire_talisman', 'aether_talisman'];
+    h += `<div class="row" style="padding-left:22px;">
+      <span class="row-label-dim">Talisman:</span>
+      <select onchange="state.locSummon['${key}'].talismanType=this.value">
+        ${talismans.map(t => opt(t, t === summon.talismanType)).join('')}
+      </select>
+    </div>`;
+    h += `<div class="preview-cond" style="margin-left:22px; margin-top:2px; font-size:11px;">
+      // emits before your rules: <span class="kw-field">?summon.count</span> <span class="kw-op">=</span>
+      <span class="kw-val">0</span> → equipR ${summon.talismanType} + activate
+    </div>`;
+  }
+  h += `</div></div>`;
 
   if (rules.length === 0) {
     h += `<div class="empty-state">
-      No rules yet for <strong style="color:var(--accent)">${name}</strong>.<br>
+      No rules yet for <strong style="color:var(--accent)">${name.toUpperCase()}</strong>.<br>
       Add a rule to define equipment and behaviour for this location.
     </div>`;
   } else {
@@ -713,18 +780,40 @@ function copyScript() {
 
 function generateScript() {
   const lines = [];
-  lines.push('// Generated by Stone Script Builder v0.1');
+  lines.push('// Generated by Stone Script Builder v0.1 - by Andy Geers https://github.com/andygeers/stone-script-builder/');
   lines.push('import UI/MindstoneButton');
   lines.push('');
 
-  // Global potion
-  if (state.globalPotion.enabled) {
-    const pt = state.globalPotion.potionType;
-    const potCond = pt === 'any'
-      ? `(item.potion = healing | item.potion = cleansing | item.potion = vampiric)`
-      : `item.potion = ${pt}`;
-    lines.push(`?hp < ${state.globalPotion.hpBelow} & ${potCond}`);
-    lines.push(`  activate potion`);
+  // Attack animation cancelling
+  if (state.attackAnimCancel) {
+    lines.push('?item.left.state = 3');
+    lines.push('  equipL *0 wand //trash');
+    lines.push('  equipL @item.left@');
+    lines.push('?item.right.state = 3');
+    lines.push('  equipR *0 shield //trash');
+    lines.push('  equip @item.right@');
+    lines.push('');
+  }
+
+  // Global rules (no loc wrapper)
+  const globalRules = state.rules['global'];
+  if (globalRules.length > 0) {
+    globalRules.forEach((rule, idx) => {
+      const prefix = idx === 0 ? '?' : ':?';
+      const condStr = buildCondStr(rule.conditions);
+      if (condStr) {
+        lines.push(`${prefix}${condStr}`);
+      } else {
+        lines.push(idx === 0 ? '// (global fallback — no condition)' : ':');
+      }
+      if (rule.notes) lines.push(`  // ${rule.notes}`);
+      const lw = weapStr(rule.leftHand, rule.leftMod);
+      const rw = weapStr(rule.rightHand, rule.rightMod);
+      if (lw && rw && lw === rw) { lines.push(`  equip ${lw}`); }
+      else { if (lw) lines.push(`  equipL ${lw}`); if (rw) lines.push(`  equipR ${rw}`); }
+      if (rule.activateR)      lines.push(`  ?item.CanActivate()\n    activate R`);
+      if (rule.activatePotion) lines.push(`  activate potion`);
+    });
     lines.push('');
   }
 
@@ -732,7 +821,8 @@ function generateScript() {
   LOC_KEYS.forEach((key, li) => {
     if (key === 'global') return;
     const rules = state.rules[key];
-    const hasSummon = state.globalSummon.enabled;
+    const summon = state.locSummon[key] || {};
+    const hasSummon = summon.enabled;
 
     // Only emit if there are rules (or summon is enabled)
     if (rules.length === 0 && !hasSummon) return;
@@ -744,7 +834,7 @@ function generateScript() {
     // Summon block first
     if (hasSummon) {
       lines.push(`  ?summon.count = 0`);
-      lines.push(`    equipR ${state.globalSummon.talismanType}`);
+      lines.push(`    equipR ${summon.talismanType}`);
       lines.push(`    ?item.CanActivate()`);
       lines.push(`      activate R`);
       ruleStart = 1;
@@ -834,6 +924,7 @@ function moveRule(key, idx, dir) {
 
 function setRuleProp(key, idx, prop, val) {
   state.rules[key][idx][prop] = val;
+  saveState();
   renderTabs();
 }
 
@@ -849,6 +940,7 @@ function removeCond(key, ruleIdx, condIdx) {
 
 function setCondProp(key, ruleIdx, condIdx, prop, val) {
   state.rules[key][ruleIdx].conditions[condIdx][prop] = val;
+  saveState();
 }
 
 function setCondField(key, ruleIdx, condIdx, fieldVal) {
@@ -861,6 +953,56 @@ function setCondField(key, ruleIdx, condIdx, fieldVal) {
   else                       cond.value = '10';
   cond.operator = (fd.type === 'foe' || fd.type === 'potion') ? '=' : '<';
   render();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PERSISTENCE (localStorage)
+// ═══════════════════════════════════════════════════════════
+
+const STORAGE_KEY = 'stone-script-builder-v1';
+
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      nextId,
+      activeTab: state.activeTab,
+      rules: state.rules,
+      locSummon: state.locSummon,
+      attackAnimCancel: state.attackAnimCancel,
+    }));
+  } catch(e) { /* localStorage unavailable */ }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+
+    if (saved.nextId)  nextId = saved.nextId;
+    if (typeof saved.activeTab === 'number') state.activeTab = saved.activeTab;
+    if (typeof saved.attackAnimCancel === 'boolean') state.attackAnimCancel = saved.attackAnimCancel;
+
+    // Merge saved rules — preserve default empty arrays for any new location keys
+    if (saved.rules) {
+      LOC_KEYS.forEach(k => {
+        if (Array.isArray(saved.rules[k])) state.rules[k] = saved.rules[k];
+      });
+    }
+
+    // Merge saved locSummon — preserve defaults for any new location keys
+    if (saved.locSummon) {
+      LOC_KEYS.filter(k => k !== 'global').forEach(k => {
+        if (saved.locSummon[k]) state.locSummon[k] = saved.locSummon[k];
+      });
+    }
+  } catch(e) { /* Corrupt data — start fresh */ }
+}
+
+function clearState() {
+  if (!confirm('Reset ALL rules and settings? This cannot be undone.')) return;
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  location.reload();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -885,6 +1027,7 @@ function setStatus(msg) {
 //  BOOT
 // ═══════════════════════════════════════════════════════════
 
+loadState();
 render();
 </script>
 </body>
