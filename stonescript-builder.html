@@ -361,18 +361,19 @@ const LOC_INFO = {
 const WEAPONS = [
   '(none)',
   // Swords / Melee
-  'heavy hammer', 'poison sword', 'ice sword', 'fire big sword', 'aether sword',
+  'heavy hammer', 'poison sword', 'ice sword', 'fire sword', 'fire big sword', 'aether sword',
   'vigor sword', 'bardiche', 'ice staff', 'skeleton_arm', 'blade_of_god',
   // Ranged
   'repeating crossbow', 'fire crossbow', 'ice crossbow', 'aether crossbow',
   // Wands
   'poison wand', 'fire wand', 'ice wand', 'aether wand', 'vigor wand',
   // Shields & Utility
-  'compound shield', 'dash', 'bash', 'Mind Stone', 'mind',
+  'shield', 'compound shield', 'dash', 'bash', 'Mind Stone', 'mind',
   // Healing / Pickup
   'oro', 'star',
   // Masks & Talismans
   'mask', 'fire_talisman', 'aether_talisman',
+  '(other)',
 ];
 
 const WEAPON_MODIFIERS = ['(none)', 'D', 'dL', 'dP', 'dF', 'dI', '*0'];
@@ -393,6 +394,7 @@ const FOE_TYPES = [
   'Pallas the Legless', 'Timmy', 'Boo',
   // Temple / Plateau
   'Nagaraja', 'dysangelos', 'acronian scout', 'Acronian Cultist',
+  '(other)',
 ];
 
 const POTION_TYPES = ['any', 'healing', 'cleansing', 'vampiric'];
@@ -403,6 +405,7 @@ const COND_FIELDS = [
   { v: 'foe.armor',      label: 'Foe armor',      type: 'num'    },
   { v: 'foe.state',      label: 'Foe state #',    type: 'num'    },
   { v: 'foe.count',      label: 'Foe count',      type: 'num'    },
+  { v: 'foe_element',   label: 'Foe element',    type: 'foe_element' },
   { v: 'hp',             label: 'HP (absolute)',   type: 'num'    },
   { v: 'hp_pct',         label: 'HP %',           type: 'pct'    },
   { v: 'armor',          label: 'My armor',       type: 'num'    },
@@ -413,6 +416,10 @@ const COND_FIELDS = [
 
 const OPERATORS     = ['=', '!=', '<', '<=', '>', '>='];
 const NUM_OPS       = ['<', '<=', '>', '>=', '=', '!='];
+
+// For "foe element" conditions: the element the foe IS, mapped to the element we should USE against them
+const FOE_ELEMENT_WEAKNESS = { ice: 'fire', fire: 'aether', aether: 'vigor', vigor: 'poison', poison: 'ice' };
+const FOE_ELEMENTS = ['ice', 'fire', 'aether', 'vigor', 'poison'];
 
 // ═══════════════════════════════════════════════════════════
 //  STATE
@@ -426,8 +433,10 @@ const makeRule = () => ({
   conditions: [],
   leftHand: '(none)',
   leftMod: '(none)',
+  leftHandCustom: '',
   rightHand: '(none)',
   rightMod: '(none)',
+  rightHandCustom: '',
   activateR: false,
   activatePotion: false,
   notes: '',
@@ -439,6 +448,7 @@ const makeCond = () => ({
   operator: '=',
   value: 'boss',
   negate: false,
+  customValue: '',
 });
 
 let state = {
@@ -501,6 +511,11 @@ function buildGlobalHTML() {
   // Attack animation cancel
   h += `<div class="row" style="margin-top:6px;"><label><input type="checkbox" ${state.attackAnimCancel ? 'checked' : ''}
     onchange="state.attackAnimCancel=this.checked;render()"> Attack animation cancelling</label></div>`;
+  h += `<div style="padding-left:22px; font-size:12px; color:var(--dim); margin-bottom:4px;">
+    Enhances the attack speed of most weapons by interrupting the idle frame between swings.
+    <a href="https://stonestoryrpg.miraheze.org/wiki/Guide:Attack_Animation_Canceling"
+      target="_blank" style="color:var(--cyan);">Learn more ↗</a>
+  </div>`;
   if (state.attackAnimCancel) {
     h += `<div class="preview-cond" style="margin-left:22px; margin-top:4px;">
       <span class="kw-field">?item.left.state</span> <span class="kw-op">=</span> <span class="kw-val">3</span><br>
@@ -649,6 +664,7 @@ function buildRuleCard(rule, idx, key, total) {
     <select onchange="setRuleProp('${key}',${idx},'leftHand',this.value)">
       ${WEAPONS.map(w => opt(w, w === rule.leftHand)).join('')}
     </select>
+    ${rule.leftHand === '(other)' ? `<input type="text" style="min-width:140px;" placeholder="e.g. fire sw" value="${escHtml(rule.leftHandCustom || '')}" onchange="setRuleProp('${key}',${idx},'leftHandCustom',this.value)">` : ''}
     <select title="Modifier (D=dual, dP=debuff poison, etc.)" onchange="setRuleProp('${key}',${idx},'leftMod',this.value)">
       ${WEAPON_MODIFIERS.map(m => opt(m, m === rule.leftMod, m === '(none)' ? 'No modifier' : m)).join('')}
     </select>
@@ -660,6 +676,7 @@ function buildRuleCard(rule, idx, key, total) {
     <select onchange="setRuleProp('${key}',${idx},'rightHand',this.value)">
       ${WEAPONS.map(w => opt(w, w === rule.rightHand)).join('')}
     </select>
+    ${rule.rightHand === '(other)' ? `<input type="text" style="min-width:140px;" placeholder="e.g. compound shield" value="${escHtml(rule.rightHandCustom || '')}" onchange="setRuleProp('${key}',${idx},'rightHandCustom',this.value)">` : ''}
     <select title="Modifier" onchange="setRuleProp('${key}',${idx},'rightMod',this.value)">
       ${WEAPON_MODIFIERS.map(m => opt(m, m === rule.rightMod, m === '(none)' ? 'No modifier' : m)).join('')}
     </select>
@@ -693,32 +710,54 @@ function buildRuleCard(rule, idx, key, total) {
 
 function buildCondRow(cond, cidx, ruleId, key, ruleIdx) {
   const fieldDef = COND_FIELDS.find(f => f.v === cond.field) || COND_FIELDS[0];
+  const isFoeElement = fieldDef.type === 'foe_element';
   const ops = (fieldDef.type === 'foe' || fieldDef.type === 'potion') ? ['=', '!='] : NUM_OPS;
 
   let h = `<div class="row" id="cr-${ruleId}-${cidx}">`;
   if (cidx > 0) h += `<span class="logic-and">AND</span>`;
 
-  // Negate
-  h += `<label style="font-size:12px; color:var(--dim);">
-    <input type="checkbox" ${cond.negate ? 'checked' : ''}
-      onchange="setCondProp('${key}',${ruleIdx},${cidx},'negate',this.checked)"> NOT
-  </label>`;
+  // NOT checkbox (hidden for foe_element — the immunity check is always implicit)
+  if (!isFoeElement) {
+    h += `<label style="font-size:12px; color:var(--dim);">
+      <input type="checkbox" ${cond.negate ? 'checked' : ''}
+        onchange="setCondProp('${key}',${ruleIdx},${cidx},'negate',this.checked)"> NOT
+    </label>`;
+  }
 
-  // Field
+  // Field selector
   h += `<select onchange="setCondField('${key}',${ruleIdx},${cidx},this.value)">
     ${COND_FIELDS.map(f => opt(f.v, f.v === cond.field, f.label)).join('')}
   </select>`;
 
-  // Operator
-  h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'operator',this.value)">
-    ${ops.map(o => opt(o, o === cond.operator)).join('')}
-  </select>`;
+  // Operator (hidden for foe_element — it's always an "is" check)
+  if (!isFoeElement) {
+    h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'operator',this.value)">
+      ${ops.map(o => opt(o, o === cond.operator)).join('')}
+    </select>`;
+  }
 
   // Value
   if (fieldDef.type === 'foe') {
     h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'value',this.value)">
       ${FOE_TYPES.map(f => opt(f, f === cond.value)).join('')}
     </select>`;
+    // Show text input when "(other)" is selected
+    if (cond.value === '(other)') {
+      h += `<input type="text" style="min-width:140px;" placeholder='e.g. "nail biter"'
+        value="${escHtml(cond.customValue || '')}"
+        onchange="setCondProp('${key}',${ruleIdx},${cidx},'customValue',this.value)">`;
+    }
+  } else if (fieldDef.type === 'foe_element') {
+    const weakEl = FOE_ELEMENT_WEAKNESS[cond.value] || '?';
+    const elemCol = ELEM_COLORS[cond.value.charAt(0).toUpperCase() + cond.value.slice(1)] || '#FFF';
+    const weakCol = ELEM_COLORS[weakEl.charAt(0).toUpperCase() + weakEl.slice(1)] || '#FFF';
+    h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'value',this.value)">
+      ${FOE_ELEMENTS.map(e => opt(e, e === cond.value)).join('')}
+    </select>`;
+    h += `<span style="font-size:11px; color:var(--dim);">
+      → foe is <strong style="color:${elemCol};">${cond.value}</strong>,
+      use <strong style="color:${weakCol};">${weakEl}</strong> weapons
+    </span>`;
   } else if (fieldDef.type === 'potion') {
     h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'value',this.value)">
       ${POTION_TYPES.filter(p=>p!=='any').map(p => opt(p, p === cond.value)).join('')}
@@ -744,8 +783,15 @@ function buildCondPreview(conditions) {
     if (c.field === 'hp_pct') {
       return `${neg}<span class="kw-field">hp</span> <span class="kw-op">${c.operator}</span> <span class="kw-val">maxhp * ${(+c.value/100).toFixed(2)}</span>`;
     }
+    if (c.field === 'foe_element') {
+      const weakEl = FOE_ELEMENT_WEAKNESS[c.value] || '?';
+      const elemCol = ELEM_COLORS[c.value.charAt(0).toUpperCase() + c.value.slice(1)] || '#FFF';
+      const weakCol = ELEM_COLORS[weakEl.charAt(0).toUpperCase() + weakEl.slice(1)] || '#FFF';
+      return `<span class="kw-field">foe</span> <span class="kw-op">=</span> <span style="color:${elemCol};">${c.value}</span> <span class="kw-logic">&amp;</span> <span style="color:var(--dim);">!(adaptive <span class="kw-logic">&amp;</span> <span style="color:${weakCol};">${weakEl}</span> prot)</span>`;
+    }
+    const foeVal = (c.field === 'foe' && c.value === '(other)') ? (c.customValue || '…') : c.value;
     const opStr = c.operator === '!=' ? '!' : c.operator;
-    return `${neg}<span class="kw-field">${c.field}</span> <span class="kw-op">${opStr}</span> <span class="kw-val">${c.value}</span>`;
+    return `${neg}<span class="kw-field">${c.field}</span> <span class="kw-op">${opStr}</span> <span class="kw-val">${foeVal}</span>`;
   }).join(' <span class="kw-logic">&amp;</span> ');
 }
 
@@ -786,6 +832,8 @@ function generateScript() {
 
   // Attack animation cancelling
   if (state.attackAnimCancel) {
+    lines.push('// Attack animation cancelling — enhances attack speed of most weapons');
+    lines.push('// See: https://stonestoryrpg.miraheze.org/wiki/Guide:Attack_Animation_Canceling');
     lines.push('?item.left.state = 3');
     lines.push('  equipL *0 wand //trash');
     lines.push('  equipL @item.left@');
@@ -807,8 +855,8 @@ function generateScript() {
         lines.push(idx === 0 ? '// (global fallback — no condition)' : ':');
       }
       if (rule.notes) lines.push(`  // ${rule.notes}`);
-      const lw = weapStr(rule.leftHand, rule.leftMod);
-      const rw = weapStr(rule.rightHand, rule.rightMod);
+      const lw = weapStr(rule.leftHand, rule.leftMod, rule.leftHandCustom);
+      const rw = weapStr(rule.rightHand, rule.rightMod, rule.rightHandCustom);
       if (lw && rw && lw === rw) { lines.push(`  equip ${lw}`); }
       else { if (lw) lines.push(`  equipL ${lw}`); if (rw) lines.push(`  equipR ${rw}`); }
       if (rule.activateR)      lines.push(`  ?item.CanActivate()\n    activate R`);
@@ -855,8 +903,8 @@ function generateScript() {
       if (rule.notes) lines.push(`    // ${rule.notes}`);
 
       // Equipment
-      const lw = weapStr(rule.leftHand, rule.leftMod);
-      const rw = weapStr(rule.rightHand, rule.rightMod);
+      const lw = weapStr(rule.leftHand, rule.leftMod, rule.leftHandCustom);
+      const rw = weapStr(rule.rightHand, rule.rightMod, rule.rightHandCustom);
 
       if (lw && rw && lw === rw) {
         lines.push(`    equip ${lw}`);
@@ -880,10 +928,12 @@ function generateScript() {
   return lines.join('\n');
 }
 
-function weapStr(weapon, mod) {
+function weapStr(weapon, mod, customVal) {
   if (!weapon || weapon === '(none)') return null;
+  const name = weapon === '(other)' ? (customVal || '') : weapon;
+  if (!name) return null;
   const m = (!mod || mod === '(none)') ? '' : ` ${mod}`;
-  return `${weapon}${m}`;
+  return `${name}${m}`;
 }
 
 function buildCondStr(conditions) {
@@ -893,8 +943,13 @@ function buildCondStr(conditions) {
     if (c.field === 'hp_pct') {
       return `${neg}hp ${c.operator} maxhp * ${(+c.value/100).toFixed(2)}`;
     }
+    if (c.field === 'foe_element') {
+      const weakEl = FOE_ELEMENT_WEAKNESS[c.value] || c.value;
+      return `foe = ${c.value} & !(foe.buffs.string = adaptive & foe.buffs.string = ${weakEl})`;
+    }
     const opStr = c.operator === '!=' ? '!' : c.operator;
-    return `${neg}${c.field} ${opStr} ${c.value}`;
+    const val = (c.field === 'foe' && c.value === '(other)') ? (c.customValue || '') : c.value;
+    return `${neg}${c.field} ${opStr} ${val}`;
   }).join(' & ');
 }
 
@@ -924,8 +979,7 @@ function moveRule(key, idx, dir) {
 
 function setRuleProp(key, idx, prop, val) {
   state.rules[key][idx][prop] = val;
-  saveState();
-  renderTabs();
+  render();
 }
 
 function addCond(key, ruleIdx) {
@@ -940,7 +994,7 @@ function removeCond(key, ruleIdx, condIdx) {
 
 function setCondProp(key, ruleIdx, condIdx, prop, val) {
   state.rules[key][ruleIdx].conditions[condIdx][prop] = val;
-  saveState();
+  render();
 }
 
 function setCondField(key, ruleIdx, condIdx, fieldVal) {
@@ -948,10 +1002,10 @@ function setCondField(key, ruleIdx, condIdx, fieldVal) {
   cond.field = fieldVal;
   const fd = COND_FIELDS.find(f => f.v === fieldVal);
   // Reset value to sensible default
-  if (fd.type === 'foe')    cond.value = 'boss';
-  else if (fd.type === 'potion') cond.value = 'healing';
-  else                       cond.value = '10';
-  cond.operator = (fd.type === 'foe' || fd.type === 'potion') ? '=' : '<';
+  if (fd.type === 'foe')         { cond.value = 'boss'; cond.operator = '='; }
+  else if (fd.type === 'potion') { cond.value = 'healing'; cond.operator = '='; }
+  else if (fd.type === 'foe_element') { cond.value = 'ice'; cond.operator = '='; }
+  else                           { cond.value = '10'; cond.operator = '<'; }
   render();
 }
 
