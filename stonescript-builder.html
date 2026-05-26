@@ -541,7 +541,7 @@ function buildGlobalHTML() {
     </div>`;
     h += `<div class="preview-cond" style="margin-left:22px; margin-top:4px; margin-bottom:8px;">
       <span class="kw-field">?foe</span> <span class="kw-op">=</span> <span class="kw-val">boss</span><br>
-      &nbsp;&nbsp;<span class="kw-op">\`&gt;</span><span class="kw-val">${state.bossStateX},${state.bossStateY},#FF7700,@foe.state@</span>
+      &nbsp;&nbsp;<span class="kw-op">&gt;\`</span><span class="kw-val">${state.bossStateX},${state.bossStateY},#FF7700,@foe.state@</span>
     </div>`;
   }
 
@@ -920,7 +920,7 @@ function generateScript() {
   // Boss state display
   if (state.showBossState) {
     lines.push(`?foe = boss`);
-    lines.push(`  \`>${state.bossStateX},${state.bossStateY},#FF7700,@foe.state@`);
+    lines.push(`  >\`${state.bossStateX},${state.bossStateY},#FF7700,@foe.state@`);
     lines.push('');
   }
 
