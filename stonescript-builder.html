@@ -467,6 +467,9 @@ let state = {
     LOC_KEYS.filter(k => k !== 'global').map(k => [k, { enabled: false, talismanType: 'fire_talisman' }])
   ),
   attackAnimCancel: false,
+  showBossState: false,
+  bossStateX: 2,
+  bossStateY: 2,
   pets: Object.fromEntries(PETS.map(p => [p, false])),
 };
 
@@ -520,6 +523,27 @@ function buildGlobalHTML() {
   h += `<div class="global-card">`;
   h += `<div class="global-card-header">┌─ SPECIAL BEHAVIOURS ───────────────────────────────</div>`;
   h += `<div class="global-card-body">`;
+
+  // Show boss state
+  h += `<div class="row"><label><input type="checkbox" ${state.showBossState ? 'checked' : ''}
+    onchange="state.showBossState=this.checked;render()"> Show boss state number on screen</label></div>`;
+  h += `<div style="padding-left:22px; font-size:12px; color:var(--dim); margin-bottom:4px;">
+    Displays the current boss state as a number while in combat — useful for figuring out which state to script against.
+  </div>`;
+  if (state.showBossState) {
+    h += `<div class="row" style="padding-left:22px;">
+      <span class="row-label-dim">Display at X:</span>
+      <input type="number" style="width:55px;" min="0" value="${state.bossStateX}"
+        onchange="state.bossStateX=+this.value;render()">
+      <span class="row-label-dim" style="margin-left:8px;">Y:</span>
+      <input type="number" style="width:55px;" min="0" value="${state.bossStateY}"
+        onchange="state.bossStateY=+this.value;render()">
+    </div>`;
+    h += `<div class="preview-cond" style="margin-left:22px; margin-top:4px; margin-bottom:8px;">
+      <span class="kw-field">?foe</span> <span class="kw-op">=</span> <span class="kw-val">boss</span><br>
+      &nbsp;&nbsp;<span class="kw-op">\`&gt;</span><span class="kw-val">${state.bossStateX},${state.bossStateY},#FF7700,@foe.state@</span>
+    </div>`;
+  }
 
   // Attack animation cancel
   h += `<div class="row" style="margin-top:6px;"><label><input type="checkbox" ${state.attackAnimCancel ? 'checked' : ''}
@@ -893,6 +917,13 @@ function generateScript() {
     lines.push('');
   }
 
+  // Boss state display
+  if (state.showBossState) {
+    lines.push(`?foe = boss`);
+    lines.push(`  \`>${state.bossStateX},${state.bossStateY},#FF7700,@foe.state@`);
+    lines.push('');
+  }
+
   // Global rules (no loc wrapper)
   const globalRules = state.rules['global'];
   if (globalRules.length > 0) {
@@ -1073,6 +1104,9 @@ function saveState() {
       rules: state.rules,
       locSummon: state.locSummon,
       attackAnimCancel: state.attackAnimCancel,
+      showBossState: state.showBossState,
+      bossStateX: state.bossStateX,
+      bossStateY: state.bossStateY,
       pets: state.pets,
     }));
   } catch(e) { /* localStorage unavailable */ }
@@ -1087,6 +1121,9 @@ function loadState() {
     if (saved.nextId)  nextId = saved.nextId;
     if (typeof saved.activeTab === 'number') state.activeTab = saved.activeTab;
     if (typeof saved.attackAnimCancel === 'boolean') state.attackAnimCancel = saved.attackAnimCancel;
+    if (typeof saved.showBossState === 'boolean') state.showBossState = saved.showBossState;
+    if (typeof saved.bossStateX === 'number') state.bossStateX = saved.bossStateX;
+    if (typeof saved.bossStateY === 'number') state.bossStateY = saved.bossStateY;
 
     // Merge saved rules — preserve default empty arrays for any new location keys
     if (saved.rules) {
