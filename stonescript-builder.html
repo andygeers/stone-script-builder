@@ -386,6 +386,14 @@ const WEAPONS = [
 
 const WEAPON_MODIFIERS = ['(none)', 'D', 'dL', 'dP', 'dF', 'dI', '*0'];
 
+// Weapons that occupy both hands — must use `equip` rather than `equipL`/`equipR`
+const TWO_HANDED_WEAPONS = new Set([
+  'heavy hammer', 'bardiche', 'fire big sword',
+  'ice staff', 'skeleton_arm', 'blade_of_god',
+  'repeating crossbow', 'fire crossbow', 'ice crossbow', 'aether crossbow',
+  'shovel', 'hatchet',
+]);
+
 const FOE_TYPES = [
   '(any foe)',
   // Generic
@@ -695,6 +703,10 @@ function buildRuleCard(rule, idx, key, total) {
   // ── ACTIONS ──
   h += `<div class="row"><span class="row-label" style="color:var(--green);">THEN:</span></div>`;
 
+  // Two-handed detection for UI hints
+  const leftIsTwoH  = isTwoHanded(rule.leftHand);
+  const rightIsTwoH = isTwoHanded(rule.rightHand);
+
   // Left hand
   h += `<div class="row">
     <span class="row-label-dim">Left hand:</span>
@@ -702,21 +714,24 @@ function buildRuleCard(rule, idx, key, total) {
       ${WEAPONS.map(w => opt(w, w === rule.leftHand)).join('')}
     </select>
     ${rule.leftHand === '(other)' ? `<input type="text" style="min-width:140px;" placeholder="e.g. fire sw" value="${escHtml(rule.leftHandCustom || '')}" onchange="setRuleProp('${key}',${idx},'leftHandCustom',this.value)">` : ''}
-    <select title="Modifier (D=dual, dP=debuff poison, etc.)" onchange="setRuleProp('${key}',${idx},'leftMod',this.value)">
+    ${!leftIsTwoH && !rightIsTwoH ? `<select title="Modifier (D=dual, dP=debuff poison, etc.)" onchange="setRuleProp('${key}',${idx},'leftMod',this.value)">
       ${WEAPON_MODIFIERS.map(m => opt(m, m === rule.leftMod, m === '(none)' ? 'No modifier' : m)).join('')}
-    </select>
+    </select>` : ''}
+    ${leftIsTwoH ? `<span style="color:var(--orange); font-size:11px;">⚠ two-handed → will use <strong>equip</strong></span>` : ''}
+    ${rightIsTwoH && !leftIsTwoH ? `<span style="color:var(--dim); font-size:11px;">(ignored — right hand is two-handed)</span>` : ''}
   </div>`;
 
   // Right hand
-  h += `<div class="row">
+  h += `<div class="row" ${leftIsTwoH ? 'style="opacity:0.4; pointer-events:none;" title="Disabled — left-hand weapon is two-handed"' : ''}>
     <span class="row-label-dim">Right hand:</span>
     <select onchange="setRuleProp('${key}',${idx},'rightHand',this.value)">
       ${WEAPONS.map(w => opt(w, w === rule.rightHand)).join('')}
     </select>
     ${rule.rightHand === '(other)' ? `<input type="text" style="min-width:140px;" placeholder="e.g. compound shield" value="${escHtml(rule.rightHandCustom || '')}" onchange="setRuleProp('${key}',${idx},'rightHandCustom',this.value)">` : ''}
-    <select title="Modifier" onchange="setRuleProp('${key}',${idx},'rightMod',this.value)">
+    ${!leftIsTwoH && !rightIsTwoH ? `<select title="Modifier" onchange="setRuleProp('${key}',${idx},'rightMod',this.value)">
       ${WEAPON_MODIFIERS.map(m => opt(m, m === rule.rightMod, m === '(none)' ? 'No modifier' : m)).join('')}
-    </select>
+    </select>` : ''}
+    ${rightIsTwoH ? `<span style="color:var(--orange); font-size:11px;">⚠ two-handed → will use <strong>equip</strong></span>` : ''}
   </div>`;
 
   // Activate
@@ -938,7 +953,10 @@ function generateScript() {
       if (rule.notes) lines.push(`  // ${rule.notes}`);
       const lw = weapStr(rule.leftHand, rule.leftMod, rule.leftHandCustom);
       const rw = weapStr(rule.rightHand, rule.rightMod, rule.rightHandCustom);
-      if (lw && rw && lw === rw) { lines.push(`  equip ${lw}`); }
+      const lTwoH = isTwoHanded(rule.leftHand);
+      const rTwoH = isTwoHanded(rule.rightHand);
+      if (lw && (lTwoH || (rw && lw === rw))) { lines.push(`  equip ${lw}`); }
+      else if (rw && rTwoH) { lines.push(`  equip ${rw}`); }
       else { if (lw) lines.push(`  equipL ${lw}`); if (rw) lines.push(`  equipR ${rw}`); }
       if (rule.activateR)      lines.push(`  ?item.CanActivate()\n    activate R`);
       if (rule.activatePotion) lines.push(`  activate potion`);
@@ -986,9 +1004,13 @@ function generateScript() {
       // Equipment
       const lw = weapStr(rule.leftHand, rule.leftMod, rule.leftHandCustom);
       const rw = weapStr(rule.rightHand, rule.rightMod, rule.rightHandCustom);
+      const lTwoH = isTwoHanded(rule.leftHand);
+      const rTwoH = isTwoHanded(rule.rightHand);
 
-      if (lw && rw && lw === rw) {
+      if (lw && (lTwoH || (rw && lw === rw))) {
         lines.push(`    equip ${lw}`);
+      } else if (rw && rTwoH) {
+        lines.push(`    equip ${rw}`);
       } else {
         if (lw) lines.push(`    equipL ${lw}`);
         if (rw) lines.push(`    equipR ${rw}`);
@@ -1015,6 +1037,12 @@ function weapStr(weapon, mod, customVal) {
   if (!name) return null;
   const m = (!mod || mod === '(none)') ? '' : ` ${mod}`;
   return `${name}${m}`;
+}
+
+// Returns true if this weapon name is known to be two-handed
+function isTwoHanded(weapon) {
+  if (!weapon || weapon === '(none)' || weapon === '(other)') return false;
+  return TWO_HANDED_WEAPONS.has(weapon);
 }
 
 function buildCondStr(conditions) {
