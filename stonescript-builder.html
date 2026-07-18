@@ -475,6 +475,8 @@ let state = {
     LOC_KEYS.filter(k => k !== 'global').map(k => [k, { enabled: false, talismanType: 'fire_talisman' }])
   ),
   attackAnimCancel: false,
+  harvestPlateauStone: false,
+  harvestForestWood: false,
   showBossState: false,
   bossStateX: 2,
   bossStateY: 2,
@@ -649,6 +651,43 @@ function buildLocationHTML(tabIdx) {
     </div>`;
   }
   h += `</div></div>`;
+
+  // ── Per-location harvest card (Plateau and Forest only) ──
+  if (key === 'plateau') {
+    h += `<div class="global-card" style="margin-bottom:12px;">`;
+    h += `<div class="global-card-header">┌─ HARVESTING ────────────────────────────────────────</div>`;
+    h += `<div class="global-card-body">`;
+    h += `<div class="row"><label><input type="checkbox" ${state.harvestPlateauStone ? 'checked' : ''}
+      onchange="state.harvestPlateauStone=this.checked;render()">
+      Harvest stone with shovel when not in combat</label></div>`;
+    if (state.harvestPlateauStone) {
+      h += `<div class="preview-cond" style="margin-left:22px; margin-top:4px;">
+        :?harvest.distance &lt;= 10 <span class="kw-logic">&amp;</span> hp &gt;= maxhp<br>
+        &nbsp;&nbsp;equip shovel<br>
+        &nbsp;&nbsp;?harvest.distance &lt; 3 <span class="kw-logic">&amp;</span> item.GetCooldown("shovel") &lt;= 0 <span class="kw-logic">&amp;</span> item.CanActivate()<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;activate R
+      </div>`;
+    }
+    h += `</div></div>`;
+  }
+
+  if (key === 'forest') {
+    h += `<div class="global-card" style="margin-bottom:12px;">`;
+    h += `<div class="global-card-header">┌─ HARVESTING ────────────────────────────────────────</div>`;
+    h += `<div class="global-card-body">`;
+    h += `<div class="row"><label><input type="checkbox" ${state.harvestForestWood ? 'checked' : ''}
+      onchange="state.harvestForestWood=this.checked;render()">
+      Harvest wood with hatchet when not in combat</label></div>`;
+    if (state.harvestForestWood) {
+      h += `<div class="preview-cond" style="margin-left:22px; margin-top:4px;">
+        :?harvest.distance &lt;= 10 <span class="kw-logic">&amp;</span> hp &gt;= maxhp<br>
+        &nbsp;&nbsp;equip hatchet<br>
+        &nbsp;&nbsp;?harvest.distance &lt; 5 <span class="kw-logic">&amp;</span> item.GetCooldown("hatchet") &lt;= 0 <span class="kw-logic">&amp;</span> item.CanActivate()<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;activate R
+      </div>`;
+    }
+    h += `</div></div>`;
+  }
 
   if (rules.length === 0) {
     h += `<div class="empty-state">
@@ -971,8 +1010,11 @@ function generateScript() {
     const summon = state.locSummon[key] || {};
     const hasSummon = summon.enabled;
 
-    // Only emit if there are rules (or summon is enabled)
-    if (rules.length === 0 && !hasSummon) return;
+    const hasHarvestStone = (key === 'plateau' && state.harvestPlateauStone);
+    const hasHarvestWood  = (key === 'forest'  && state.harvestForestWood);
+
+    // Only emit if there are rules (or summon/harvest is enabled)
+    if (rules.length === 0 && !hasSummon && !hasHarvestStone && !hasHarvestWood) return;
 
     lines.push(`?loc = ${key}`);
 
@@ -1020,9 +1062,20 @@ function generateScript() {
       if (rule.activatePotion) lines.push(`    activate potion`);
     });
 
-    if (hasSummon && rules.length > 0) {
-      // close the summon block with a colon before the first real rule
-      // (already handled by prefix logic above — this is a simplification)
+    // Harvest stone (Rocky Plateau) — appended as a low-priority else-if
+    if (hasHarvestStone) {
+      lines.push(`  :?harvest.distance <= 10 & hp >= maxhp`);
+      lines.push(`    equip shovel`);
+      lines.push(`    ?harvest.distance < 3 & item.GetCooldown("shovel") <= 0 & item.CanActivate()`);
+      lines.push(`      activate R`);
+    }
+
+    // Harvest wood (Mushroom Forest) — appended as a low-priority else-if
+    if (hasHarvestWood) {
+      lines.push(`  :?harvest.distance <= 10 & hp >= maxhp`);
+      lines.push(`    equip hatchet`);
+      lines.push(`    ?harvest.distance < 5 & item.GetCooldown("hatchet") <= 0 & item.CanActivate()`);
+      lines.push(`      activate R`);
     }
 
     lines.push('');
@@ -1132,6 +1185,8 @@ function saveState() {
       rules: state.rules,
       locSummon: state.locSummon,
       attackAnimCancel: state.attackAnimCancel,
+      harvestPlateauStone: state.harvestPlateauStone,
+      harvestForestWood: state.harvestForestWood,
       showBossState: state.showBossState,
       bossStateX: state.bossStateX,
       bossStateY: state.bossStateY,
@@ -1149,6 +1204,8 @@ function loadState() {
     if (saved.nextId)  nextId = saved.nextId;
     if (typeof saved.activeTab === 'number') state.activeTab = saved.activeTab;
     if (typeof saved.attackAnimCancel === 'boolean') state.attackAnimCancel = saved.attackAnimCancel;
+    if (typeof saved.harvestPlateauStone === 'boolean') state.harvestPlateauStone = saved.harvestPlateauStone;
+    if (typeof saved.harvestForestWood === 'boolean') state.harvestForestWood = saved.harvestForestWood;
     if (typeof saved.showBossState === 'boolean') state.showBossState = saved.showBossState;
     if (typeof saved.bossStateX === 'number') state.bossStateX = saved.bossStateX;
     if (typeof saved.bossStateY === 'number') state.bossStateY = saved.bossStateY;
