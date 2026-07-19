@@ -334,8 +334,9 @@ input[type="checkbox"] {
 const LOCATIONS  = ['Global', 'Canyon', 'Forest', 'Icy Ridge', 'Mine', 'Caves', 'Halls', 'Temple', 'Plateau'];
 const LOC_KEYS   = ['global', 'canyon', 'forest', 'icy_ridge', 'mine', 'caves', 'halls', 'temple', 'plateau'];
 const LOC_DISPLAY = ['Global', 'Deadwood Canyon', 'Mushroom Forest', 'Icy Ridge', 'Boiling Mine', 'Caves of Fear', 'Haunted Halls', 'Temple', 'Rocky Plateau'];
-const PETS_TAB   = LOCATIONS.length;
-const EXPORT_TAB = LOCATIONS.length + 1;
+const PETS_TAB   = LOCATIONS.length;      // = 9
+const TIMERS_TAB = LOCATIONS.length + 1;  // = 10
+const EXPORT_TAB = LOCATIONS.length + 2;  // = 11
 
 const PETS = [
   'Bear','BlackHole','Boo','Bunny','CatBalloon','CavePets','Chick','Crab','Cranius',
@@ -422,6 +423,7 @@ const COND_FIELDS = [
   { v: 'foe.state',      label: 'Foe state #',    type: 'num'    },
   { v: 'foe.count',      label: 'Foe count',      type: 'num'    },
   { v: 'foe_element',   label: 'Foe element',    type: 'foe_element' },
+  { v: 'timer_fired',  label: 'Timer fired',    type: 'timer'       },
   { v: 'hp',             label: 'HP (absolute)',   type: 'num'    },
   { v: 'hp_pct',         label: 'HP %',           type: 'pct'    },
   { v: 'armor',          label: 'My armor',       type: 'num'    },
@@ -455,8 +457,12 @@ const makeRule = () => ({
   rightHandCustom: '',
   activateR: false,
   activatePotion: false,
+  startTimers: [],  // array of { id, timerName, frames }
   notes: '',
 });
+
+const makeTimerEntry  = ()     => ({ id: uid(), name: 'my_timer' });
+const makeStartTimer  = (name) => ({ id: uid(), timerName: name || '', frames: 30 });
 
 const makeCond = () => ({
   id: uid(),
@@ -481,6 +487,7 @@ let state = {
   bossStateX: 2,
   bossStateY: 2,
   pets: Object.fromEntries(PETS.map(p => [p, false])),
+  timers: [],   // array of { id, name }
 };
 
 // ═══════════════════════════════════════════════════════════
@@ -505,6 +512,9 @@ function renderTabs() {
   const petsActive = state.activeTab === PETS_TAB ? 'active' : '';
   const petsCount = Object.values(state.pets).filter(Boolean).length;
   html += `<div class="tab ${petsActive}" onclick="setTab(${PETS_TAB})">Pets${petsCount > 0 ? `<span class="badge">(${petsCount})</span>` : ''}</div>`;
+  const timersActive = state.activeTab === TIMERS_TAB ? 'active' : '';
+  const timersCount = state.timers.length;
+  html += `<div class="tab ${timersActive}" onclick="setTab(${TIMERS_TAB})">Timers${timersCount > 0 ? `<span class="badge">(${timersCount})</span>` : ''}</div>`;
   const expActive = state.activeTab === EXPORT_TAB ? 'active' : '';
   html += `<div class="tab tab-export ${expActive}" onclick="setTab(${EXPORT_TAB})">▶ EXPORT</div>`;
   bar.innerHTML = html;
@@ -517,8 +527,9 @@ function setTab(i) {
 
 function renderContent() {
   const el = document.getElementById('content');
-  if (state.activeTab === EXPORT_TAB) { el.innerHTML = buildExportHTML(); return; }
-  if (state.activeTab === PETS_TAB)   { el.innerHTML = buildPetsHTML(); return; }
+  if (state.activeTab === EXPORT_TAB)   { el.innerHTML = buildExportHTML(); return; }
+  if (state.activeTab === TIMERS_TAB)  { el.innerHTML = buildTimersHTML(); return; }
+  if (state.activeTab === PETS_TAB)    { el.innerHTML = buildPetsHTML(); return; }
   if (state.activeTab === 0)          { el.innerHTML = buildGlobalHTML(); return; }
   el.innerHTML = buildLocationHTML(state.activeTab);
 }
@@ -785,6 +796,28 @@ function buildRuleCard(rule, idx, key, total) {
       Use potion <span style="color:var(--dim); font-size:11px;">(activate potion)</span></label>
   </div>`;
 
+  // Start timers
+  if (state.timers.length > 0) {
+    (rule.startTimers || []).forEach((st, sti) => {
+      h += `<div class="row">
+        <span class="row-label-dim" style="color:var(--orange);">▶ Timer:</span>
+        <select onchange="setStartTimer('${key}',${idx},${sti},'timerName',this.value)">
+          ${state.timers.map(t => opt(t.name, t.name === st.timerName)).join('')}
+        </select>
+        <span style="color:var(--dim); font-size:12px;">in</span>
+        <input type="number" min="1" style="width:65px;" value="${st.frames}"
+          onchange="setStartTimer('${key}',${idx},${sti},'frames',+this.value)">
+        <span style="color:var(--dim); font-size:12px;">frames</span>
+        <span style="color:var(--dim); font-size:11px;">(≈${(st.frames/30).toFixed(1)}s)</span>
+        <button class="btn btn-sm btn-danger" onclick="removeStartTimer('${key}',${idx},${sti})">[✕]</button>
+      </div>`;
+    });
+    h += `<div class="row">
+      <button class="btn btn-sm" style="color:var(--orange);"
+        onclick="addStartTimer('${key}',${idx})">[ + START TIMER ]</button>
+    </div>`;
+  }
+
   // Notes
   h += `<div class="row">
     <span class="row-label-dim" style="color:var(--dim);">// Comment:</span>
@@ -802,13 +835,14 @@ function buildRuleCard(rule, idx, key, total) {
 function buildCondRow(cond, cidx, ruleId, key, ruleIdx) {
   const fieldDef = COND_FIELDS.find(f => f.v === cond.field) || COND_FIELDS[0];
   const isFoeElement = fieldDef.type === 'foe_element';
+  const isTimer      = fieldDef.type === 'timer';
   const ops = (fieldDef.type === 'foe' || fieldDef.type === 'potion') ? ['=', '!='] : NUM_OPS;
 
   let h = `<div class="row" id="cr-${ruleId}-${cidx}">`;
   if (cidx > 0) h += `<span class="logic-and">AND</span>`;
 
-  // NOT checkbox (hidden for foe_element — the immunity check is always implicit)
-  if (!isFoeElement) {
+  // NOT checkbox (hidden for foe_element and timer — their logic is always positive)
+  if (!isFoeElement && !isTimer) {
     h += `<label style="font-size:12px; color:var(--dim);">
       <input type="checkbox" ${cond.negate ? 'checked' : ''}
         onchange="setCondProp('${key}',${ruleIdx},${cidx},'negate',this.checked)"> NOT
@@ -820,8 +854,8 @@ function buildCondRow(cond, cidx, ruleId, key, ruleIdx) {
     ${COND_FIELDS.map(f => opt(f.v, f.v === cond.field, f.label)).join('')}
   </select>`;
 
-  // Operator (hidden for foe_element — it's always an "is" check)
-  if (!isFoeElement) {
+  // Operator (hidden for foe_element and timer — their logic is fixed)
+  if (!isFoeElement && !isTimer) {
     h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'operator',this.value)">
       ${ops.map(o => opt(o, o === cond.operator)).join('')}
     </select>`;
@@ -849,6 +883,15 @@ function buildCondRow(cond, cidx, ruleId, key, ruleIdx) {
       → foe is <strong style="color:${elemCol};">${cond.value}</strong>,
       use <strong style="color:${weakCol};">${weakEl}</strong> weapons
     </span>`;
+  } else if (fieldDef.type === 'timer') {
+    if (state.timers.length === 0) {
+      h += `<span style="color:var(--orange); font-size:12px;">⚠ No timers declared — go to the Timers tab first</span>`;
+    } else {
+      h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'value',this.value)">
+        ${state.timers.map(t => opt(t.name, t.name === cond.value)).join('')}
+      </select>`;
+      h += `<span style="font-size:11px; color:var(--dim);">→ <code style="color:var(--accent);">time >= ${escHtml(cond.value)} &amp; ${escHtml(cond.value)} > 0</code> · resets after firing</span>`;
+    }
   } else if (fieldDef.type === 'potion') {
     h += `<select onchange="setCondProp('${key}',${ruleIdx},${cidx},'value',this.value)">
       ${POTION_TYPES.filter(p=>p!=='any').map(p => opt(p, p === cond.value)).join('')}
@@ -880,10 +923,92 @@ function buildCondPreview(conditions) {
       const weakCol = ELEM_COLORS[weakEl.charAt(0).toUpperCase() + weakEl.slice(1)] || '#FFF';
       return `<span class="kw-field">foe</span> <span class="kw-op">=</span> <span style="color:${elemCol};">${c.value}</span> <span class="kw-logic">&amp;</span> <span style="color:var(--dim);">!(adaptive <span class="kw-logic">&amp;</span> <span style="color:${weakCol};">${weakEl}</span> prot)</span>`;
     }
+    if (c.field === 'timer_fired') {
+      return `<span class="kw-field">time</span> <span class="kw-op">&gt;=</span> <span class="kw-val">${c.value || '?'}</span> <span class="kw-logic">&amp;</span> <span class="kw-field">${c.value || '?'}</span> <span class="kw-op">&gt;</span> <span class="kw-val">0</span>`;
+    }
     const foeVal = (c.field === 'foe' && c.value === '(other)') ? (c.customValue || '…') : c.value;
     const opStr = c.operator === '!=' ? '!' : c.operator;
     return `${neg}<span class="kw-field">${c.field}</span> <span class="kw-op">${opStr}</span> <span class="kw-val">${foeVal}</span>`;
   }).join(' <span class="kw-logic">&amp;</span> ');
+}
+
+// ── TIMERS TAB ───────────────────────────────────────────────
+
+function buildTimersHTML() {
+  let h = `<div class="section-header">╔══ TIMERS ══╗</div>`;
+  h += `<div class="hint">Named timers let you delay an action by N frames. Declare a timer here, then use it in any rule's conditions or actions.</div>`;
+
+  h += `<div class="global-card" style="margin-bottom:14px;">`;
+  h += `<div class="global-card-header">┌─ HOW TIMERS WORK ──────────────────────────────────</div>`;
+  h += `<div class="global-card-body" style="font-size:12px; color:var(--dim); line-height:1.7;">`;
+  h += `<span style="color:var(--cyan);">1.</span> Declare a timer here (give it a name).<br>`;
+  h += `<span style="color:var(--cyan);">2.</span> In any rule's <strong style="color:var(--green);">THEN</strong> section, add <em>"Start timer"</em> to record <code style="color:var(--accent);">time + N</code> when your trigger fires.<br>`;
+  h += `<span style="color:var(--cyan);">3.</span> In a later rule's <strong style="color:var(--cyan);">IF</strong> section, use the <em>"Timer fired"</em> condition — the rule runs when the delay has elapsed.<br>`;
+  h += `<span style="color:var(--cyan);">4.</span> The timer resets automatically after it fires.`;
+  h += `</div></div>`;
+
+  if (state.timers.length === 0) {
+    h += `<div class="empty-state">No timers declared yet.<br>Click <strong>[ + ADD TIMER ]</strong> to create one.</div>`;
+  } else {
+    state.timers.forEach((t, i) => {
+      // Count usages across all rules
+      let startCount = 0, fireCount = 0;
+      LOC_KEYS.forEach(k => {
+        (state.rules[k] || []).forEach(r => {
+          (r.startTimers || []).forEach(st => { if (st.timerName === t.name) startCount++; });
+          (r.conditions  || []).forEach(c  => { if (c.field === 'timer_fired' && c.value === t.name) fireCount++; });
+        });
+      });
+      const warn = (startCount === 0 || fireCount === 0) && (startCount + fireCount > 0);
+      const unusedWarn = (startCount === 0 && fireCount === 0);
+      h += `<div class="rule-card" style="margin-bottom:8px;">`;
+      h += `<div class="rule-card-body">`;
+      h += `<div class="row">`;
+      h += `<span class="row-label-dim">Name:</span>`;
+      h += `<input type="text" style="min-width:200px;" value="${escHtml(t.name)}"
+        placeholder="e.g. boss_phase_delay"
+        onchange="renameTimer(${i}, this.value)">`;
+      h += `<button class="btn btn-sm btn-danger" onclick="deleteTimer(${i})">[✕ DEL]</button>`;
+      h += `</div>`;
+      h += `<div style="font-size:11px; color:var(--dim); margin-top:4px; padding-left:4px;">`;
+      h += `<code style="color:var(--accent);">var ${escHtml(t.name)} = 0</code> declared at script top`;
+      if (unusedWarn) {
+        h += ` &nbsp;<span style="color:var(--orange);">⚠ not used in any rule</span>`;
+      } else if (warn) {
+        h += ` &nbsp;<span style="color:var(--orange);">⚠ ${startCount === 0 ? 'never started' : 'never fired on'} — check your rules</span>`;
+      } else {
+        h += ` &nbsp;<span style="color:var(--green);">✓ started in ${startCount} rule${startCount!==1?'s':''}, fired on in ${fireCount} rule${fireCount!==1?'s':''}</span>`;
+      }
+      h += `</div>`;
+      h += `</div></div>`;
+    });
+  }
+
+  h += `<button class="btn btn-primary" onclick="addTimer()">[ + ADD TIMER ]</button>`;
+  return h;
+}
+
+function addTimer() {
+  state.timers.push(makeTimerEntry());
+  render();
+}
+
+function deleteTimer(i) {
+  state.timers.splice(i, 1);
+  render();
+}
+
+function renameTimer(i, newName) {
+  const oldName = state.timers[i].name;
+  state.timers[i].name = newName;
+  // Update all rule references
+  LOC_KEYS.forEach(k => {
+    (state.rules[k] || []).forEach(r => {
+      (r.startTimers || []).forEach(st => { if (st.timerName === oldName) st.timerName = newName; });
+      (r.conditions  || []).forEach(c  => { if (c.field === 'timer_fired' && c.value === oldName) c.value = newName; });
+    });
+  });
+  render();
 }
 
 // ── PETS TAB ─────────────────────────────────────────────────
@@ -958,6 +1083,13 @@ function generateScript() {
   selectedPets.forEach(p => lines.push(`import Pets/${p}`));
   if (selectedPets.length > 0) lines.push('');
 
+  // Timer variable declarations
+  if (state.timers.length > 0) {
+    lines.push('// Timer variables');
+    state.timers.forEach(t => lines.push(`var ${t.name} = 0`));
+    lines.push('');
+  }
+
   // Attack animation cancelling
   if (state.attackAnimCancel) {
     lines.push('// Attack animation cancelling — enhances attack speed of most weapons');
@@ -999,6 +1131,7 @@ function generateScript() {
       else { if (lw) lines.push(`  equipL ${lw}`); if (rw) lines.push(`  equipR ${rw}`); }
       if (rule.activateR)      lines.push(`  ?item.CanActivate()\n    activate R`);
       if (rule.activatePotion) lines.push(`  activate potion`);
+      timerActionLines(rule, '  ').forEach(l => lines.push(l));
     });
     lines.push('');
   }
@@ -1060,6 +1193,7 @@ function generateScript() {
 
       if (rule.activateR)      lines.push(`    ?item.CanActivate()\n      activate R`);
       if (rule.activatePotion) lines.push(`    activate potion`);
+      timerActionLines(rule, '    ').forEach(l => lines.push(l));
     });
 
     // Harvest stone (Rocky Plateau) — appended as a low-priority else-if
@@ -1092,6 +1226,22 @@ function weapStr(weapon, mod, customVal) {
   return `${name}${m}`;
 }
 
+// Returns lines to emit for a rule's timer-related actions (start timers + auto-reset)
+function timerActionLines(rule, indent) {
+  const out = [];
+  // Start timers
+  (rule.startTimers || []).forEach(st => {
+    if (st.timerName) out.push(`${indent}var ${st.timerName} = time + ${st.frames}`);
+  });
+  // Auto-reset: any timer referenced in conditions via timer_fired
+  (rule.conditions || []).forEach(c => {
+    if (c.field === 'timer_fired' && c.value) {
+      out.push(`${indent}var ${c.value} = 0`);
+    }
+  });
+  return out;
+}
+
 // Returns true if this weapon name is known to be two-handed
 function isTwoHanded(weapon) {
   if (!weapon || weapon === '(none)' || weapon === '(other)') return false;
@@ -1108,6 +1258,9 @@ function buildCondStr(conditions) {
     if (c.field === 'foe_element') {
       const weakEl = FOE_ELEMENT_WEAKNESS[c.value] || c.value;
       return `foe = ${c.value} & !(foe.buffs.string = adaptive & foe.buffs.string = ${weakEl})`;
+    }
+    if (c.field === 'timer_fired') {
+      return `time >= ${c.value} & ${c.value} > 0`;
     }
     const opStr = c.operator === '!=' ? '!' : c.operator;
     const val = (c.field === 'foe' && c.value === '(other)') ? (c.customValue || '') : c.value;
@@ -1159,15 +1312,34 @@ function setCondProp(key, ruleIdx, condIdx, prop, val) {
   render();
 }
 
+function addStartTimer(key, ruleIdx) {
+  const rule = state.rules[key][ruleIdx];
+  if (!rule.startTimers) rule.startTimers = [];
+  const defaultName = state.timers.length > 0 ? state.timers[0].name : '';
+  rule.startTimers.push(makeStartTimer(defaultName));
+  render();
+}
+
+function removeStartTimer(key, ruleIdx, sti) {
+  state.rules[key][ruleIdx].startTimers.splice(sti, 1);
+  render();
+}
+
+function setStartTimer(key, ruleIdx, sti, prop, val) {
+  state.rules[key][ruleIdx].startTimers[sti][prop] = val;
+  render();
+}
+
 function setCondField(key, ruleIdx, condIdx, fieldVal) {
   const cond = state.rules[key][ruleIdx].conditions[condIdx];
   cond.field = fieldVal;
   const fd = COND_FIELDS.find(f => f.v === fieldVal);
   // Reset value to sensible default
-  if (fd.type === 'foe')         { cond.value = 'boss'; cond.operator = '='; }
-  else if (fd.type === 'potion') { cond.value = 'healing'; cond.operator = '='; }
-  else if (fd.type === 'foe_element') { cond.value = 'ice'; cond.operator = '='; }
-  else                           { cond.value = '10'; cond.operator = '<'; }
+  if (fd.type === 'foe')              { cond.value = 'boss';    cond.operator = '='; }
+  else if (fd.type === 'potion')     { cond.value = 'healing'; cond.operator = '='; }
+  else if (fd.type === 'foe_element'){ cond.value = 'ice';     cond.operator = '='; }
+  else if (fd.type === 'timer')      { cond.value = state.timers.length > 0 ? state.timers[0].name : ''; cond.operator = '='; }
+  else                               { cond.value = '10';      cond.operator = '<'; }
   render();
 }
 
@@ -1191,6 +1363,7 @@ function saveState() {
       bossStateX: state.bossStateX,
       bossStateY: state.bossStateY,
       pets: state.pets,
+      timers: state.timers,
     }));
   } catch(e) { /* localStorage unavailable */ }
 }
@@ -1223,6 +1396,9 @@ function loadState() {
         if (saved.locSummon[k]) state.locSummon[k] = saved.locSummon[k];
       });
     }
+
+    // Restore timers
+    if (Array.isArray(saved.timers)) state.timers = saved.timers;
 
     // Merge saved pets — preserve defaults for any new pets added later
     if (saved.pets) {
