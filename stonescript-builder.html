@@ -476,7 +476,7 @@ let state = {
   ),
   attackAnimCancel: false,
   harvestPlateauStone: false,
-  harvestForestWood: false,
+  harvestCanyonWood: false,
   showBossState: false,
   bossStateX: 2,
   bossStateY: 2,
@@ -671,14 +671,14 @@ function buildLocationHTML(tabIdx) {
     h += `</div></div>`;
   }
 
-  if (key === 'forest') {
+  if (key === 'canyon') {
     h += `<div class="global-card" style="margin-bottom:12px;">`;
     h += `<div class="global-card-header">┌─ HARVESTING ────────────────────────────────────────</div>`;
     h += `<div class="global-card-body">`;
-    h += `<div class="row"><label><input type="checkbox" ${state.harvestForestWood ? 'checked' : ''}
-      onchange="state.harvestForestWood=this.checked;render()">
+    h += `<div class="row"><label><input type="checkbox" ${state.harvestCanyonWood ? 'checked' : ''}
+      onchange="state.harvestCanyonWood=this.checked;render()">
       Harvest wood with hatchet when not in combat</label></div>`;
-    if (state.harvestForestWood) {
+    if (state.harvestCanyonWood) {
       h += `<div class="preview-cond" style="margin-left:22px; margin-top:4px;">
         :?harvest.distance &lt;= 10 <span class="kw-logic">&amp;</span> hp &gt;= maxhp<br>
         &nbsp;&nbsp;equip hatchet<br>
@@ -1011,7 +1011,7 @@ function generateScript() {
     const hasSummon = summon.enabled;
 
     const hasHarvestStone = (key === 'plateau' && state.harvestPlateauStone);
-    const hasHarvestWood  = (key === 'forest'  && state.harvestForestWood);
+    const hasHarvestWood  = (key === 'canyon'  && state.harvestCanyonWood);
 
     // Only emit if there are rules (or summon/harvest is enabled)
     if (rules.length === 0 && !hasSummon && !hasHarvestStone && !hasHarvestWood) return;
@@ -1186,7 +1186,7 @@ function saveState() {
       locSummon: state.locSummon,
       attackAnimCancel: state.attackAnimCancel,
       harvestPlateauStone: state.harvestPlateauStone,
-      harvestForestWood: state.harvestForestWood,
+      harvestCanyonWood: state.harvestCanyonWood,
       showBossState: state.showBossState,
       bossStateX: state.bossStateX,
       bossStateY: state.bossStateY,
@@ -1205,7 +1205,7 @@ function loadState() {
     if (typeof saved.activeTab === 'number') state.activeTab = saved.activeTab;
     if (typeof saved.attackAnimCancel === 'boolean') state.attackAnimCancel = saved.attackAnimCancel;
     if (typeof saved.harvestPlateauStone === 'boolean') state.harvestPlateauStone = saved.harvestPlateauStone;
-    if (typeof saved.harvestForestWood === 'boolean') state.harvestForestWood = saved.harvestForestWood;
+    if (typeof saved.harvestCanyonWood === 'boolean') state.harvestCanyonWood = saved.harvestCanyonWood;
     if (typeof saved.showBossState === 'boolean') state.showBossState = saved.showBossState;
     if (typeof saved.bossStateX === 'number') state.bossStateX = saved.bossStateX;
     if (typeof saved.bossStateY === 'number') state.bossStateY = saved.bossStateY;
